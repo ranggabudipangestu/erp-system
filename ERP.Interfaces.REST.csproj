@@ -15,8 +15,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\modules\master-data\ERP.Modules.MasterData.csproj" />
-    <ProjectReference Include="..\..\infrastructure\db\ERP.Infrastructure.DB.csproj" />
+    <ProjectReference Include="modules\master-data\ERP.Modules.MasterData.csproj" />
+    <ProjectReference Include="infrastructure\db\ERP.Infrastructure.DB.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="api\**\*.cs" />
+    <Compile Remove="modules\**\*.cs" />
+    <Compile Remove="infrastructure\**\*.cs" />
+    <Compile Remove="ui\**\*.cs" />
+    <Compile Remove="database\**\*.cs" />
+    <Compile Remove="bin\**\*.cs" />
+    <Compile Remove="scripts\**\*.cs" />
   </ItemGroup>
 
 </Project>
