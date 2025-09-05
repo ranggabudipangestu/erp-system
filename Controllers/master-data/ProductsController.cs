@@ -2,7 +2,7 @@ using ERP.Modules.MasterData.Product.Contracts;
 using ERP.Modules.MasterData.Product.DTOs;
 using Microsoft.AspNetCore.Mvc;
 
-namespace ERP.Interfaces.REST.Controllers.MasterData;
+namespace ERP.REST.Controllers.MasterData;
 
 [ApiController]
 [Route("api/master-data/products")]
