@@ -4,6 +4,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,13 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="api\**\*.cs" />
-    <Compile Remove="modules\**\*.cs" />
-    <Compile Remove="infrastructure\**\*.cs" />
-    <Compile Remove="ui\**\*.cs" />
-    <Compile Remove="database\**\*.cs" />
-    <Compile Remove="bin\**\*.cs" />
-    <Compile Remove="scripts\**\*.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="api\Controllers\**\*.cs" />
+    <Compile Include="Extensions\**\*.cs" />
+    <Compile Include="Properties\**\*.cs" />
   </ItemGroup>
 
 </Project>

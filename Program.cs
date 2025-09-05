@@ -1,8 +1,7 @@
 using ERP.Infrastructure.DB;
-using ERP.Modules.MasterData.Product.Contracts;
-using ERP.Modules.MasterData.Product.Repositories;
-using ERP.Modules.MasterData.Product.Services;
+using ERP.Interfaces.REST.Extensions;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,8 +29,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 // Register services
 builder.Services.AddScoped<DbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
-builder.Services.AddScoped<IProductRepository, ProductRepository>();
-builder.Services.AddScoped<IProductService, ProductService>();
+
+// Register all application services (single call for all modules)
+builder.Services.AddApplicationServices();
 
 var app = builder.Build();
 
