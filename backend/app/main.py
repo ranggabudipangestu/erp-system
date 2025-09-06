@@ -3,9 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.db import init_engine_and_session
-
-# Routers (module registrations)
-from app.modules.master_data.product.router import router as product_router
+from app.api.routing import register_routers
 
 
 def create_app() -> FastAPI:
@@ -24,7 +22,7 @@ def create_app() -> FastAPI:
     init_engine_and_session(settings.database_url)
 
     # Register routers (Modular Monolith entrypoint)
-    app.include_router(product_router, prefix="/api/master-data/products", tags=["MasterData: Products"])
+    register_routers(app)
 
     @app.get("/health")
     def health():
@@ -34,4 +32,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-

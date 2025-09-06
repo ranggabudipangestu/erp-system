@@ -1,5 +1,10 @@
 import os
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+# Load environment variables from a .env file if present
+# This reads from the working directory (backend/) during local dev
+load_dotenv()
 
 
 class Settings(BaseModel):
@@ -17,4 +22,3 @@ class Settings(BaseModel):
 
 
 settings = Settings()
-
