@@ -13,26 +13,26 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init:/docker-entrypoint-initdb.d
+      - ./Database/init:/docker-entrypoint-initdb.d
     networks:
       - erp_network
 
-  # .NET API
+  # FastAPI Backend
   api:
     build:
-      context: .
-      dockerfile: ./Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: erp_api
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Host=postgres;Database=erp_system;Username=erp_user;Password=erp_password
+      - DATABASE_URL=postgresql+psycopg2://erp_user:erp_password@postgres:5432/erp_system
+      - CORS_ORIGINS=http://localhost:3000
     ports:
-      - "5000:5000"
-      - "5001:5001"
+      - "6000:6000"
     depends_on:
       - postgres
     volumes:
-      - .:/app
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 6000 --reload
     networks:
       - erp_network
 
@@ -43,7 +43,7 @@ services:
       dockerfile: Dockerfile
     container_name: erp_frontend
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:5000
+      - NEXT_PUBLIC_API_URL=http://localhost:6000
     ports:
       - "3000:3000"
     depends_on:

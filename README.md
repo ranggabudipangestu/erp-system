@@ -5,9 +5,9 @@ A modular monolith ERP (Enterprise Resource Planning) system built with modern t
 ## Tech Stack
 
 ### Backend
-- **.NET 9** (C#, ASP.NET Core)
+- **FastAPI** (Python 3.12)
 - **PostgreSQL** database
-- **Entity Framework Core** for data access
+- **SQLAlchemy** for data access
 
 ### Frontend
 - **React 18** with **Next.js 15**
@@ -38,14 +38,11 @@ The system follows a **modular monolith** architecture with clear separation of 
     /Product      # Product master data
 
 /infrastructure   # Cross-cutting concerns
-  /db            # Database context & repositories
-  /caching       # Caching services
-  /event-bus     # Event handling
+  /db            # (replaced by Python SQLAlchemy setup)
+  /caching       # (TBD)
+  /event-bus     # (TBD)
 
-/api             # API interfaces
-  /rest          # REST API (primary)
-  /graphql       # GraphQL API
-  /grpc          # gRPC services
+/backend         # FastAPI backend (primary)
 
 /ui             # User interface
   /react-app     # Next.js frontend application
@@ -55,7 +52,6 @@ The system follows a **modular monolith** architecture with clear separation of 
 
 ### Prerequisites
 - Docker & Docker Compose
-- .NET 9 SDK (for local development)
 - Node.js 18+ (for frontend development)
 
 ### Quick Start
@@ -68,25 +64,28 @@ The system follows a **modular monolith** architecture with clear separation of 
 
 2. **Start the application**
    ```bash
-   docker-compose up -d
+   docker compose up -d postgres api frontend metabase
    ```
 
 3. **Access the applications**
    - **Frontend**: http://localhost:3000
    - **API**: http://localhost:5000
-   - **API Swagger**: http://localhost:5000/swagger
+   - **API OpenAPI**: http://localhost:5000/docs
    - **Metabase**: http://localhost:3001
 
 ### Development
 
-#### Backend Development
+#### Backend Development (FastAPI)
 ```bash
-# Restore packages
-dotnet restore
+# Option A: Docker (hot reload)
+docker compose up -d --build api
 
-# Run the API
-cd interfaces/rest
-dotnet run
+# Option B: Local
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+export DATABASE_URL=postgresql+psycopg2://erp_user:erp_password@localhost:5432/erp_system
+uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload
 ```
 
 #### Frontend Development
