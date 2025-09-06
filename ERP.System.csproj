@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <Compile Include="Program.cs" />
-    <Compile Include="api\Controllers\**\*.cs" />
+    <Compile Include="Api\Controllers\**\*.cs" />
     <Compile Include="Extensions\**\*.cs" />
     <Compile Include="Properties\**\*.cs" />
   </ItemGroup>

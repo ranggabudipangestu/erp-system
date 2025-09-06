@@ -21,7 +21,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: ./api/rest/Dockerfile
+      dockerfile: ./Dockerfile
     container_name: erp_api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
