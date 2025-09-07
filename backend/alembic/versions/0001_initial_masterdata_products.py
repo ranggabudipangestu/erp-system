@@ -19,8 +19,9 @@ depends_on = None
 
 def upgrade() -> None:
     # Create schema if not exists
-    op.execute("CREATE SCHEMA IF NOT EXISTS masterdata")
+    # op.execute("CREATE SCHEMA IF NOT EXISTS masterdata")
 
+    # op.execute("CREATE TABLE IF NOT EXISTS")
     # Create Products table
     op.create_table(
         "Products",
@@ -50,12 +51,10 @@ def upgrade() -> None:
         sa.Column("UpdatedAt", sa.DateTime(timezone=True), nullable=True),
         sa.Column("CreatedBy", sa.String(length=100), nullable=False),
         sa.Column("UpdatedBy", sa.String(length=100), nullable=True),
-        schema="masterdata",
+        if_not_exists=True
     )
 
 
 def downgrade() -> None:
-    op.drop_table("Products", schema="masterdata")
-    # Optionally drop schema if empty
-    op.execute("DROP SCHEMA IF EXISTS masterdata CASCADE")
+    op.drop_table("Products", if_exists=True)
 
