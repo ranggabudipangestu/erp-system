@@ -4,7 +4,7 @@ This directory contains a FastAPI rewrite of the ERP backend, structured as a mo
 
 Key points:
 - Clean module prefixes (no `/api`): e.g., `/master-data/products`.
-- PostgreSQL via SQLAlchemy, mapping to the same schema/table (`masterdata.Products`).
+- PostgreSQL via SQLAlchemy, mapping to the same schema/table (`Products`).
 - Clear separation of concerns: routers, services, repositories, schemas, and models per module.
 
 Quickstart (Local)

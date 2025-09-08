@@ -11,7 +11,7 @@ class ProductDto(BaseModel):
     code: str
     name: str
     description: Optional[str] = None
-    category: Optional[str] = None
+    category: Optional[UUID] = None
     brand: Optional[str] = None
     unit: Optional[str] = None
     price: Decimal
@@ -30,7 +30,7 @@ class CreateProductDto(BaseModel):
     code: str
     name: str
     description: Optional[str] = None
-    category: Optional[str] = None
+    category: Optional[UUID] = None
     brand: Optional[str] = None
     unit: Optional[str] = None
     price: Decimal
@@ -45,7 +45,7 @@ class CreateProductDto(BaseModel):
 class UpdateProductDto(BaseModel):
     name: str
     description: Optional[str] = None
-    category: Optional[str] = None
+    category: Optional[UUID] = None
     brand: Optional[str] = None
     unit: Optional[str] = None
     price: Decimal

@@ -22,7 +22,7 @@ class ProductRepository:
         stmt = select(Product).where(Product.code == code)
         return self.session.execute(stmt).scalar_one_or_none()
 
-    def get_by_category(self, category: str) -> Iterable[Product]:
+    def get_by_category(self, category: UUID) -> Iterable[Product]:
         stmt = select(Product).where(Product.category == category).order_by(Product.name.asc())
         return list(self.session.execute(stmt).scalars().all())
 

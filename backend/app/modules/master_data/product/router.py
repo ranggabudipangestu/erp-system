@@ -44,7 +44,7 @@ def get_product_by_code(code: str, service: ProductService = Depends(get_service
 
 
 @router.get("/by-category/{category}", response_model=List[ProductDto])
-def get_products_by_category(category: str, service: ProductService = Depends(get_service)):
+def get_products_by_category(category: UUID, service: ProductService = Depends(get_service)):
     return service.get_by_category(category)
 
 

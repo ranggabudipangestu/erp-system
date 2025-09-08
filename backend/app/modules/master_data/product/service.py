@@ -43,7 +43,7 @@ class ProductService:
         entity = self.repo.get_by_code(code)
         return map_to_dto(entity) if entity else None
 
-    def get_by_category(self, category: str) -> list[ProductDto]:
+    def get_by_category(self, category: UUID) -> list[ProductDto]:
         return [map_to_dto(p) for p in self.repo.get_by_category(category)]
 
     def search(self, search_term: str) -> list[ProductDto]:
