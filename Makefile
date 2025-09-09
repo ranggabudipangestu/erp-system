@@ -32,7 +32,7 @@ run: ## Run backend locally (applies migrations first)
 	cd $(BACKEND_DIR) && bash scripts/start.sh
 
 dev: ## Run backend in development mode
-	cd $(BACKEND_DIR) && uvicorn app.main:app --host 0.0.0.0 --port 6000
+	cd $(BACKEND_DIR) && uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 docker-up: ## Start services with Docker Compose
 	docker compose up -d

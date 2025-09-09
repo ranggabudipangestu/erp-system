@@ -25,10 +25,10 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # Copy app
 COPY app /app
 
-EXPOSE 6000
+EXPOSE 8000
 
 ENV DATABASE_URL=postgresql+psycopg2://erp_user:erp_password@postgres:5432/erp_system \
     CORS_ORIGINS=http://localhost:3000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "6000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
