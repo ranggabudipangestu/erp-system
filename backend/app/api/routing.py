@@ -19,3 +19,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(master_data_router, prefix="/manufacture", tags=["Manufacture"])
     app.include_router(master_data_router, prefix="/user", tags=["User"])
     app.include_router(master_data_router, prefix="/auth", tags=["Auth"])
+
+    # Reporting module
+    from app.modules.reporting.router import router as reporting_router
+    app.include_router(reporting_router, prefix="/reporting", tags=["Reporting"])

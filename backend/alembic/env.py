@@ -18,6 +18,7 @@ from app.core.db import Base  # noqa: E402
 
 # Import model modules so that they are registered on Base.metadata for autogenerate
 import app.modules.master_data.product.models  # noqa: F401,E402
+import app.modules.reporting.models  # noqa: F401,E402
 
 
 # this is the Alembic Config object, which provides

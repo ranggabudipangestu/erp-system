@@ -17,7 +17,15 @@ def init_engine_and_session(database_url: str) -> None:
     global engine, SessionLocal
     if engine is None:
         engine = create_engine(database_url, future=True)
-        SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, future=True)
+        # Avoid expiring ORM instances on commit so returned entities
+        # can be safely accessed after the session context closes.
+        SessionLocal = sessionmaker(
+            bind=engine,
+            autocommit=False,
+            autoflush=False,
+            expire_on_commit=False,
+            future=True,
+        )
 
 
 @contextmanager
@@ -33,4 +41,3 @@ def session_scope() -> Generator[Session, None, None]:
         raise
     finally:
         session.close()
-
