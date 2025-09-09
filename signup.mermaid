@@ -1,0 +1,41 @@
+sequenceDiagram
+    participant U as User (Owner)
+    participant FE as Frontend
+    participant SC as SignupController
+    participant TS as TenantService
+    parameter PS as ProvisioningService
+    participant US as UserService
+    participant AS as AuthService
+    participant DB as Database
+
+    U->>FE: Fill signup form
+    FE->>SC: POST /api/signup
+    
+    Note over SC: Validate signup request
+    SC->>TS: createTenant(signupRequest)
+    
+    activate TS
+    TS->>DB: Start transaction
+    TS->>DB: Create tenant record
+    TS->>PS: provisionTenant(tenantId)
+    
+    activate PS
+    PS->>DB: Create default roles
+    PS->>DB: Create default settings
+    PS->>DB: Create default chart of accounts
+    deactivate PS
+    
+    TS->>US: createOwnerUser(tenantId, userRequest)
+    
+    activate US
+    US->>DB: Create user record
+    US->>DB: Assign owner role
+    deactivate US
+    
+    TS->>DB: Commit transaction
+    deactivate TS
+    
+    SC->>AS: generateTokens(user)
+    AS-->>SC: accessToken + refreshToken
+    SC-->>FE: 201 Created + tokens
+    FE->>U: Redirect to onboarding

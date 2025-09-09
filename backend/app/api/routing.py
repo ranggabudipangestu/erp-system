@@ -8,9 +8,12 @@ def register_routers(app: FastAPI) -> None:
     Add new module routers here as they are implemented.
     """
 
+    # Auth module
+    from app.modules.auth.router import router as auth_router
+    app.include_router(auth_router, prefix="/auth", tags=["Auth"])
+
     # Master Data module
     from app.modules.master_data.router import router as master_data_router
-
     app.include_router(master_data_router, prefix="/master-data", tags=["MasterData"]) 
     app.include_router(master_data_router, prefix="/finance", tags=["Finance"]) 
     app.include_router(master_data_router, prefix="/inventory", tags=["Inventory"]) 
@@ -18,7 +21,6 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(master_data_router, prefix="/sales", tags=["Sales"])
     app.include_router(master_data_router, prefix="/manufacture", tags=["Manufacture"])
     app.include_router(master_data_router, prefix="/user", tags=["User"])
-    app.include_router(master_data_router, prefix="/auth", tags=["Auth"])
 
     # Reporting module
     from app.modules.reporting.router import router as reporting_router

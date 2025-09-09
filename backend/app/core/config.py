@@ -11,7 +11,7 @@ class Settings(BaseModel):
     database_url: str = (
         os.getenv(
             "DATABASE_URL",
-            "postgresql+psycopg2://erp_user:erp_password@localhost:5432/erp_system",
+            "postgresql+psycopg2://erp_user:erp_password@localhost:5432/erp_system_new",
         )
     )
     cors_origins: list[str] = (

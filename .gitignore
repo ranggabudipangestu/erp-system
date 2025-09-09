@@ -185,6 +185,7 @@ ehthumbs.db
 Thumbs.db
 
 # Python (backend)
+.__pycache__/
 __pycache__/
 *.py[cod]
 *$py.class

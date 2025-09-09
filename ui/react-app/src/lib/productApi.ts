@@ -1,7 +1,7 @@
 import { Product, CreateProductRequest, UpdateProductRequest } from '@/types/product';
 import { apiRequest } from './api';
 
-const PRODUCT_API_BASE = '/api/master-data/products';
+const PRODUCT_API_BASE = '/master-data/products';
 
 export const productApi = {
   // Get all products
