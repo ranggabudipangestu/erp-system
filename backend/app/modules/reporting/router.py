@@ -1,11 +1,13 @@
-from typing import List
+from typing import List, Optional
 from io import BytesIO
+from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Query
 from fastapi.responses import StreamingResponse
 
 from app.core.db import session_scope
 from .service import ReportingService
+from .excel_export_service import ExcelExportService
 from .schemas import (
     ReportingTemplateDto,
     TemplateUploadResponse,
@@ -25,6 +27,10 @@ def get_session():
 
 def get_service() -> ReportingService:
     return ReportingService()
+
+
+def get_excel_service() -> ExcelExportService:
+    return ExcelExportService()
 
 
 # Admin Template Management Endpoints
@@ -61,6 +67,117 @@ def upload_template(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Excel Export Endpoints
+
+@router.get("/reports/{entity}/export")
+def export_entity_to_excel(
+    entity: str,
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    to_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    category_id: Optional[str] = Query(None, description="Category filter (for inventory)"),
+    low_stock_only: bool = Query(False, description="Show only low stock items (for inventory)"),
+    location: Optional[str] = Query(None, description="Location filter (for inventory)"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """
+    Export entity data to Excel format.
+    
+    Supported entities: invoice, order, inventory
+    """
+    try:
+        # Export data to Excel
+        excel_content = excel_service.export_entity_to_excel(
+            entity_type=entity,
+            tenant_id=tenant_id,
+            from_date=from_date,
+            to_date=to_date,
+            status=status,
+            customer_id=customer_id,
+            category_id=category_id,
+            low_stock_only=low_stock_only,
+            location=location
+        )
+        
+        # Generate filename
+        filename = excel_service.get_export_filename(entity, tenant_id)
+        
+        # Return Excel file as attachment
+        return StreamingResponse(
+            excel_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/reports/invoices/export")
+def export_invoices(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Invoice status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export invoice data to Excel."""
+    return export_entity_to_excel(
+        entity="invoices",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/orders/export")
+def export_orders(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Order status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export order data to Excel."""
+    return export_entity_to_excel(
+        entity="orders",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/inventory/export")
+def export_inventory(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    category_id: Optional[str] = Query(None, description="Product category filter"),
+    low_stock_only: bool = Query(False, description="Show only low stock items"),
+    location: Optional[str] = Query(None, description="Location filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export inventory data to Excel."""
+    return export_entity_to_excel(
+        entity="inventory",
+        tenant_id=tenant_id,
+        category_id=category_id,
+        low_stock_only=low_stock_only,
+        location=location,
+        excel_service=excel_service
+    )
+
+
 @router.post("/admin/templates/{template_type}/preview")
 def preview_template(
     template_type: str,
@@ -86,6 +203,117 @@ def preview_template(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Excel Export Endpoints
+
+@router.get("/reports/{entity}/export")
+def export_entity_to_excel(
+    entity: str,
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    to_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    category_id: Optional[str] = Query(None, description="Category filter (for inventory)"),
+    low_stock_only: bool = Query(False, description="Show only low stock items (for inventory)"),
+    location: Optional[str] = Query(None, description="Location filter (for inventory)"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """
+    Export entity data to Excel format.
+    
+    Supported entities: invoice, order, inventory
+    """
+    try:
+        # Export data to Excel
+        excel_content = excel_service.export_entity_to_excel(
+            entity_type=entity,
+            tenant_id=tenant_id,
+            from_date=from_date,
+            to_date=to_date,
+            status=status,
+            customer_id=customer_id,
+            category_id=category_id,
+            low_stock_only=low_stock_only,
+            location=location
+        )
+        
+        # Generate filename
+        filename = excel_service.get_export_filename(entity, tenant_id)
+        
+        # Return Excel file as attachment
+        return StreamingResponse(
+            excel_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/reports/invoices/export")
+def export_invoices(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Invoice status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export invoice data to Excel."""
+    return export_entity_to_excel(
+        entity="invoices",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/orders/export")
+def export_orders(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Order status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export order data to Excel."""
+    return export_entity_to_excel(
+        entity="orders",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/inventory/export")
+def export_inventory(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    category_id: Optional[str] = Query(None, description="Product category filter"),
+    low_stock_only: bool = Query(False, description="Show only low stock items"),
+    location: Optional[str] = Query(None, description="Location filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export inventory data to Excel."""
+    return export_entity_to_excel(
+        entity="inventory",
+        tenant_id=tenant_id,
+        category_id=category_id,
+        low_stock_only=low_stock_only,
+        location=location,
+        excel_service=excel_service
+    )
 
 
 @router.get("/reports/products")
@@ -117,6 +345,117 @@ def generate_product_report(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Excel Export Endpoints
+
+@router.get("/reports/{entity}/export")
+def export_entity_to_excel(
+    entity: str,
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    to_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    category_id: Optional[str] = Query(None, description="Category filter (for inventory)"),
+    low_stock_only: bool = Query(False, description="Show only low stock items (for inventory)"),
+    location: Optional[str] = Query(None, description="Location filter (for inventory)"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """
+    Export entity data to Excel format.
+    
+    Supported entities: invoice, order, inventory
+    """
+    try:
+        # Export data to Excel
+        excel_content = excel_service.export_entity_to_excel(
+            entity_type=entity,
+            tenant_id=tenant_id,
+            from_date=from_date,
+            to_date=to_date,
+            status=status,
+            customer_id=customer_id,
+            category_id=category_id,
+            low_stock_only=low_stock_only,
+            location=location
+        )
+        
+        # Generate filename
+        filename = excel_service.get_export_filename(entity, tenant_id)
+        
+        # Return Excel file as attachment
+        return StreamingResponse(
+            excel_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/reports/invoices/export")
+def export_invoices(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Invoice status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export invoice data to Excel."""
+    return export_entity_to_excel(
+        entity="invoices",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/orders/export")
+def export_orders(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Order status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export order data to Excel."""
+    return export_entity_to_excel(
+        entity="orders",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/inventory/export")
+def export_inventory(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    category_id: Optional[str] = Query(None, description="Product category filter"),
+    low_stock_only: bool = Query(False, description="Show only low stock items"),
+    location: Optional[str] = Query(None, description="Location filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export inventory data to Excel."""
+    return export_entity_to_excel(
+        entity="inventory",
+        tenant_id=tenant_id,
+        category_id=category_id,
+        low_stock_only=low_stock_only,
+        location=location,
+        excel_service=excel_service
+    )
+
+
 @router.post("/admin/templates/{template_type}/{version}/activate")
 def activate_template(
     template_type: str,
@@ -138,6 +477,117 @@ def activate_template(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Excel Export Endpoints
+
+@router.get("/reports/{entity}/export")
+def export_entity_to_excel(
+    entity: str,
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    to_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    category_id: Optional[str] = Query(None, description="Category filter (for inventory)"),
+    low_stock_only: bool = Query(False, description="Show only low stock items (for inventory)"),
+    location: Optional[str] = Query(None, description="Location filter (for inventory)"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """
+    Export entity data to Excel format.
+    
+    Supported entities: invoice, order, inventory
+    """
+    try:
+        # Export data to Excel
+        excel_content = excel_service.export_entity_to_excel(
+            entity_type=entity,
+            tenant_id=tenant_id,
+            from_date=from_date,
+            to_date=to_date,
+            status=status,
+            customer_id=customer_id,
+            category_id=category_id,
+            low_stock_only=low_stock_only,
+            location=location
+        )
+        
+        # Generate filename
+        filename = excel_service.get_export_filename(entity, tenant_id)
+        
+        # Return Excel file as attachment
+        return StreamingResponse(
+            excel_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/reports/invoices/export")
+def export_invoices(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Invoice status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export invoice data to Excel."""
+    return export_entity_to_excel(
+        entity="invoices",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/orders/export")
+def export_orders(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Order status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export order data to Excel."""
+    return export_entity_to_excel(
+        entity="orders",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/inventory/export")
+def export_inventory(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    category_id: Optional[str] = Query(None, description="Product category filter"),
+    low_stock_only: bool = Query(False, description="Show only low stock items"),
+    location: Optional[str] = Query(None, description="Location filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export inventory data to Excel."""
+    return export_entity_to_excel(
+        entity="inventory",
+        tenant_id=tenant_id,
+        category_id=category_id,
+        low_stock_only=low_stock_only,
+        location=location,
+        excel_service=excel_service
+    )
 
 
 @router.get("/reports/products")
@@ -169,6 +619,117 @@ def generate_product_report(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Excel Export Endpoints
+
+@router.get("/reports/{entity}/export")
+def export_entity_to_excel(
+    entity: str,
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    to_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    category_id: Optional[str] = Query(None, description="Category filter (for inventory)"),
+    low_stock_only: bool = Query(False, description="Show only low stock items (for inventory)"),
+    location: Optional[str] = Query(None, description="Location filter (for inventory)"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """
+    Export entity data to Excel format.
+    
+    Supported entities: invoice, order, inventory
+    """
+    try:
+        # Export data to Excel
+        excel_content = excel_service.export_entity_to_excel(
+            entity_type=entity,
+            tenant_id=tenant_id,
+            from_date=from_date,
+            to_date=to_date,
+            status=status,
+            customer_id=customer_id,
+            category_id=category_id,
+            low_stock_only=low_stock_only,
+            location=location
+        )
+        
+        # Generate filename
+        filename = excel_service.get_export_filename(entity, tenant_id)
+        
+        # Return Excel file as attachment
+        return StreamingResponse(
+            excel_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/reports/invoices/export")
+def export_invoices(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Invoice status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export invoice data to Excel."""
+    return export_entity_to_excel(
+        entity="invoices",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/orders/export")
+def export_orders(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Order status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export order data to Excel."""
+    return export_entity_to_excel(
+        entity="orders",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/inventory/export")
+def export_inventory(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    category_id: Optional[str] = Query(None, description="Product category filter"),
+    low_stock_only: bool = Query(False, description="Show only low stock items"),
+    location: Optional[str] = Query(None, description="Location filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export inventory data to Excel."""
+    return export_entity_to_excel(
+        entity="inventory",
+        tenant_id=tenant_id,
+        category_id=category_id,
+        low_stock_only=low_stock_only,
+        location=location,
+        excel_service=excel_service
+    )
+
+
 @router.get("/admin/templates/{template_type}/history", response_model=TemplateHistoryResponse)
 def get_template_history(
     template_type: str,
@@ -188,6 +749,117 @@ def get_template_history(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Excel Export Endpoints
+
+@router.get("/reports/{entity}/export")
+def export_entity_to_excel(
+    entity: str,
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    to_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    category_id: Optional[str] = Query(None, description="Category filter (for inventory)"),
+    low_stock_only: bool = Query(False, description="Show only low stock items (for inventory)"),
+    location: Optional[str] = Query(None, description="Location filter (for inventory)"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """
+    Export entity data to Excel format.
+    
+    Supported entities: invoice, order, inventory
+    """
+    try:
+        # Export data to Excel
+        excel_content = excel_service.export_entity_to_excel(
+            entity_type=entity,
+            tenant_id=tenant_id,
+            from_date=from_date,
+            to_date=to_date,
+            status=status,
+            customer_id=customer_id,
+            category_id=category_id,
+            low_stock_only=low_stock_only,
+            location=location
+        )
+        
+        # Generate filename
+        filename = excel_service.get_export_filename(entity, tenant_id)
+        
+        # Return Excel file as attachment
+        return StreamingResponse(
+            excel_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/reports/invoices/export")
+def export_invoices(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Invoice status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export invoice data to Excel."""
+    return export_entity_to_excel(
+        entity="invoices",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/orders/export")
+def export_orders(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Order status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export order data to Excel."""
+    return export_entity_to_excel(
+        entity="orders",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/inventory/export")
+def export_inventory(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    category_id: Optional[str] = Query(None, description="Product category filter"),
+    low_stock_only: bool = Query(False, description="Show only low stock items"),
+    location: Optional[str] = Query(None, description="Location filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export inventory data to Excel."""
+    return export_entity_to_excel(
+        entity="inventory",
+        tenant_id=tenant_id,
+        category_id=category_id,
+        low_stock_only=low_stock_only,
+        location=location,
+        excel_service=excel_service
+    )
 
 
 # Report Generation Endpoints
@@ -217,6 +889,117 @@ def generate_invoice_pdf(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Excel Export Endpoints
+
+@router.get("/reports/{entity}/export")
+def export_entity_to_excel(
+    entity: str,
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    to_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    category_id: Optional[str] = Query(None, description="Category filter (for inventory)"),
+    low_stock_only: bool = Query(False, description="Show only low stock items (for inventory)"),
+    location: Optional[str] = Query(None, description="Location filter (for inventory)"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """
+    Export entity data to Excel format.
+    
+    Supported entities: invoice, order, inventory
+    """
+    try:
+        # Export data to Excel
+        excel_content = excel_service.export_entity_to_excel(
+            entity_type=entity,
+            tenant_id=tenant_id,
+            from_date=from_date,
+            to_date=to_date,
+            status=status,
+            customer_id=customer_id,
+            category_id=category_id,
+            low_stock_only=low_stock_only,
+            location=location
+        )
+        
+        # Generate filename
+        filename = excel_service.get_export_filename(entity, tenant_id)
+        
+        # Return Excel file as attachment
+        return StreamingResponse(
+            excel_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/reports/invoices/export")
+def export_invoices(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Invoice status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export invoice data to Excel."""
+    return export_entity_to_excel(
+        entity="invoices",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/orders/export")
+def export_orders(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Order status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export order data to Excel."""
+    return export_entity_to_excel(
+        entity="orders",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/inventory/export")
+def export_inventory(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    category_id: Optional[str] = Query(None, description="Product category filter"),
+    low_stock_only: bool = Query(False, description="Show only low stock items"),
+    location: Optional[str] = Query(None, description="Location filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export inventory data to Excel."""
+    return export_entity_to_excel(
+        entity="inventory",
+        tenant_id=tenant_id,
+        category_id=category_id,
+        low_stock_only=low_stock_only,
+        location=location,
+        excel_service=excel_service
+    )
+
+
 @router.get("/reports/products")
 def generate_product_report(
     tenant_id: str,
@@ -244,6 +1027,117 @@ def generate_product_report(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Excel Export Endpoints
+
+@router.get("/reports/{entity}/export")
+def export_entity_to_excel(
+    entity: str,
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    to_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    category_id: Optional[str] = Query(None, description="Category filter (for inventory)"),
+    low_stock_only: bool = Query(False, description="Show only low stock items (for inventory)"),
+    location: Optional[str] = Query(None, description="Location filter (for inventory)"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """
+    Export entity data to Excel format.
+    
+    Supported entities: invoice, order, inventory
+    """
+    try:
+        # Export data to Excel
+        excel_content = excel_service.export_entity_to_excel(
+            entity_type=entity,
+            tenant_id=tenant_id,
+            from_date=from_date,
+            to_date=to_date,
+            status=status,
+            customer_id=customer_id,
+            category_id=category_id,
+            low_stock_only=low_stock_only,
+            location=location
+        )
+        
+        # Generate filename
+        filename = excel_service.get_export_filename(entity, tenant_id)
+        
+        # Return Excel file as attachment
+        return StreamingResponse(
+            excel_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/reports/invoices/export")
+def export_invoices(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Invoice status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export invoice data to Excel."""
+    return export_entity_to_excel(
+        entity="invoices",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/orders/export")
+def export_orders(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Order status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export order data to Excel."""
+    return export_entity_to_excel(
+        entity="orders",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/inventory/export")
+def export_inventory(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    category_id: Optional[str] = Query(None, description="Product category filter"),
+    low_stock_only: bool = Query(False, description="Show only low stock items"),
+    location: Optional[str] = Query(None, description="Location filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export inventory data to Excel."""
+    return export_entity_to_excel(
+        entity="inventory",
+        tenant_id=tenant_id,
+        category_id=category_id,
+        low_stock_only=low_stock_only,
+        location=location,
+        excel_service=excel_service
+    )
 
 
 @router.get("/reports/{template_type}/{entity_id}")
@@ -277,6 +1171,117 @@ def generate_pdf_report(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Excel Export Endpoints
+
+@router.get("/reports/{entity}/export")
+def export_entity_to_excel(
+    entity: str,
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    to_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    category_id: Optional[str] = Query(None, description="Category filter (for inventory)"),
+    low_stock_only: bool = Query(False, description="Show only low stock items (for inventory)"),
+    location: Optional[str] = Query(None, description="Location filter (for inventory)"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """
+    Export entity data to Excel format.
+    
+    Supported entities: invoice, order, inventory
+    """
+    try:
+        # Export data to Excel
+        excel_content = excel_service.export_entity_to_excel(
+            entity_type=entity,
+            tenant_id=tenant_id,
+            from_date=from_date,
+            to_date=to_date,
+            status=status,
+            customer_id=customer_id,
+            category_id=category_id,
+            low_stock_only=low_stock_only,
+            location=location
+        )
+        
+        # Generate filename
+        filename = excel_service.get_export_filename(entity, tenant_id)
+        
+        # Return Excel file as attachment
+        return StreamingResponse(
+            excel_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/reports/invoices/export")
+def export_invoices(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Invoice status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export invoice data to Excel."""
+    return export_entity_to_excel(
+        entity="invoices",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/orders/export")
+def export_orders(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Order status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export order data to Excel."""
+    return export_entity_to_excel(
+        entity="orders",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/inventory/export")
+def export_inventory(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    category_id: Optional[str] = Query(None, description="Product category filter"),
+    low_stock_only: bool = Query(False, description="Show only low stock items"),
+    location: Optional[str] = Query(None, description="Location filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export inventory data to Excel."""
+    return export_entity_to_excel(
+        entity="inventory",
+        tenant_id=tenant_id,
+        category_id=category_id,
+        low_stock_only=low_stock_only,
+        location=location,
+        excel_service=excel_service
+    )
+
+
 @router.get("/reports/products")
 def generate_product_report(
     tenant_id: str,
@@ -304,3 +1309,114 @@ def generate_product_report(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Excel Export Endpoints
+
+@router.get("/reports/{entity}/export")
+def export_entity_to_excel(
+    entity: str,
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    to_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    category_id: Optional[str] = Query(None, description="Category filter (for inventory)"),
+    low_stock_only: bool = Query(False, description="Show only low stock items (for inventory)"),
+    location: Optional[str] = Query(None, description="Location filter (for inventory)"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """
+    Export entity data to Excel format.
+    
+    Supported entities: invoice, order, inventory
+    """
+    try:
+        # Export data to Excel
+        excel_content = excel_service.export_entity_to_excel(
+            entity_type=entity,
+            tenant_id=tenant_id,
+            from_date=from_date,
+            to_date=to_date,
+            status=status,
+            customer_id=customer_id,
+            category_id=category_id,
+            low_stock_only=low_stock_only,
+            location=location
+        )
+        
+        # Generate filename
+        filename = excel_service.get_export_filename(entity, tenant_id)
+        
+        # Return Excel file as attachment
+        return StreamingResponse(
+            excel_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/reports/invoices/export")
+def export_invoices(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Invoice status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export invoice data to Excel."""
+    return export_entity_to_excel(
+        entity="invoices",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/orders/export")
+def export_orders(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
+    status: Optional[str] = Query(None, description="Order status filter"),
+    customer_id: Optional[str] = Query(None, description="Customer filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export order data to Excel."""
+    return export_entity_to_excel(
+        entity="orders",
+        tenant_id=tenant_id,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        customer_id=customer_id,
+        excel_service=excel_service
+    )
+
+
+@router.get("/reports/inventory/export")
+def export_inventory(
+    tenant_id: str = Query(..., description="Tenant ID"),
+    category_id: Optional[str] = Query(None, description="Product category filter"),
+    low_stock_only: bool = Query(False, description="Show only low stock items"),
+    location: Optional[str] = Query(None, description="Location filter"),
+    excel_service: ExcelExportService = Depends(get_excel_service)
+):
+    """Export inventory data to Excel."""
+    return export_entity_to_excel(
+        entity="inventory",
+        tenant_id=tenant_id,
+        category_id=category_id,
+        low_stock_only=low_stock_only,
+        location=location,
+        excel_service=excel_service
+    )
