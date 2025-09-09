@@ -1,5 +1,4 @@
-// Auth related types
-export interface SignupOwnerRequest {
+export interface SignupOwner {
   name: string;
   email: string;
   password: string;
@@ -9,7 +8,7 @@ export interface SignupRequest {
   company_name: string;
   industry?: string;
   domain?: string;
-  owner: SignupOwnerRequest;
+  owner: SignupOwner;
   locale?: string;
   currency?: string;
   timezone?: string;
@@ -53,6 +52,17 @@ export interface User {
   updated_at?: string;
 }
 
+export interface UserTenant {
+  id: string;
+  user_id: string;
+  tenant_id: string;
+  roles: string[];
+  is_primary_tenant: boolean;
+  joined_at: string;
+  updated_at?: string;
+  tenant?: Tenant;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
@@ -66,10 +76,4 @@ export interface LoginResponse {
   expires_in: number;
   user: User;
   tenant: Tenant;
-}
-
-export interface ApiError {
-  status: number;
-  message: string;
-  detail?: string;
 }
