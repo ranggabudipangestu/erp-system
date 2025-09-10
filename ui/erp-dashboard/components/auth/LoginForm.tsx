@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { LoginRequest } from '../types/auth';
+import { LoginRequest } from '@/types/auth';
 import Link from 'next/link';
 
 interface LoginFormProps {

@@ -49,7 +49,7 @@ def upgrade() -> None:
     )
     op.create_table('audit_logs',
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('tenant_id', sa.UUID(), nullable=False),
+    sa.Column('tenant_id', sa.UUID(), nullable=True),
     sa.Column('user_id', sa.UUID(), nullable=True),
     sa.Column('action', sa.String(length=100), nullable=False),
     sa.Column('resource', sa.String(length=100), nullable=True),

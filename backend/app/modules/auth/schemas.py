@@ -232,7 +232,7 @@ class SessionDto(BaseModel):
 # Audit Log Schemas
 class AuditLogDto(BaseModel):
     id: UUID
-    tenant_id: UUID
+    tenant_id: Optional[UUID] = None
     user_id: Optional[UUID] = None
     action: str
     resource: Optional[str] = None

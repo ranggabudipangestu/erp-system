@@ -196,36 +196,39 @@ class AuthTokenRepository:
         return auth_token
     
     def get_valid_refresh_token(self, token_value: str) -> Optional[AuthToken]:
-        """Get valid (non-expired, non-revoked) refresh token"""
-        from datetime import datetime
-        
+        """Get valid (non-expired, non-revoked) refresh token by value"""
+        from datetime import datetime, timezone
+        import hashlib
+
+        token_hash = hashlib.sha256(token_value.encode()).hexdigest()
         stmt = (
             select(AuthToken)
             .where(
-                AuthToken.token_value == token_value,
-                AuthToken.token_type == "refresh",
-                AuthToken.expires_at > datetime.utcnow(),
+                AuthToken.refresh_token_hash == token_hash,
+                AuthToken.expires_at > datetime.now(timezone.utc),
                 AuthToken.revoked_at.is_(None)
             )
             .options(selectinload(AuthToken.user))
         )
-        
+
         return self.session.scalar(stmt)
     
     def revoke_token(self, token_value: str, user_id: UUID) -> bool:
-        """Revoke a specific token"""
-        from datetime import datetime
-        
+        """Revoke a specific token by its plain value"""
+        from datetime import datetime, timezone
+        import hashlib
+
+        token_hash = hashlib.sha256(token_value.encode()).hexdigest()
         stmt = (
             update(AuthToken)
             .where(
-                AuthToken.token_value == token_value,
+                AuthToken.refresh_token_hash == token_hash,
                 AuthToken.user_id == user_id,
                 AuthToken.revoked_at.is_(None)
             )
-            .values(revoked_at=datetime.utcnow())
+            .values(revoked_at=datetime.now(timezone.utc))
         )
-        
+
         result = self.session.execute(stmt)
         self.session.flush()
         return result.rowcount > 0

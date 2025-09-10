@@ -3,6 +3,7 @@ from typing import Dict, Optional, Tuple
 from uuid import UUID, uuid4
 import jwt
 import secrets
+import hashlib
 from passlib.context import CryptContext
 
 from app.core.config import get_settings
@@ -201,21 +202,22 @@ class AuthService:
         }
         
         access_token = jwt.encode(access_token_data, self.secret_key, algorithm=self.algorithm)
-        
+
         # Generate refresh token
         refresh_token_value = secrets.token_urlsafe(32)
-        refresh_token_expires = datetime.utcnow() + timedelta(days=self.refresh_token_expire_days)
-        
-        # Store refresh token in database
+        refresh_token_expires = datetime.now(timezone.utc) + timedelta(days=self.refresh_token_expire_days)
+
+        # Store refresh token hash in database
+        token_hash = hashlib.sha256(refresh_token_value.encode()).hexdigest()
         auth_token = AuthToken(
+            id=uuid4(),
             user_id=user.id,
             tenant_id=tenant_id,
-            token_type="refresh",
-            token_value=refresh_token_value,
+            refresh_token_hash=token_hash,
             expires_at=refresh_token_expires,
             ip_address=ip_address
         )
-        
+
         self.auth_token_repo.create(auth_token)
         
         return {

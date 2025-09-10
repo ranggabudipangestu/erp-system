@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 import jwt
 import secrets
+import hashlib
 
 from app.core.config import get_settings
 from .models import User, AuthToken
@@ -42,11 +43,12 @@ class TokenService:
         refresh_token_expires = datetime.now(timezone.utc) + timedelta(days=self.refresh_token_expire_days)
         
         # Store refresh token in database
+        token_hash = hashlib.sha256(refresh_token_value.encode()).hexdigest()
         auth_token = AuthToken(
+            id=uuid4(),
             user_id=user.id,
             tenant_id=tenant_id,
-            token_type="refresh",
-            token_value=refresh_token_value,
+            refresh_token_hash=token_hash,
             expires_at=refresh_token_expires,
             ip_address=ip_address
         )

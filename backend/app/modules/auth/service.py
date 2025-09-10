@@ -194,7 +194,9 @@ class SignupService:
         self.audit_repo = audit_repo
         self.auth_token_repo = auth_token_repo
         self.provisioning_service = provisioning_service
-        self.auth_service = AuthService(auth_token_repo)
+        # Use TokenService directly for token generation during signup
+        from .token_service import TokenService
+        self.token_service = TokenService(auth_token_repo)
 
     def signup(self, payload: SignupRequestDto, ip_address: str = None) -> SignupResponseDto:
         """
@@ -286,7 +288,8 @@ class SignupService:
         self.audit_repo.create(audit_log)
 
         # Generate authentication tokens
-        tokens = self.auth_service.generate_tokens(created_user, tenant_id, ip_address)
+        access_token = self.token_service.generate_access_token(created_user, tenant_id)
+        refresh_token = self.token_service.generate_refresh_token(created_user, tenant_id, ip_address)
 
         return SignupResponseDto(
             tenant_id=tenant_id,
@@ -297,10 +300,10 @@ class SignupService:
                 "Configure business settings",
                 "Connect to marketplace platforms"
             ],
-            access_token=tokens["access_token"],
-            refresh_token=tokens["refresh_token"],
-            token_type=tokens["token_type"],
-            expires_in=tokens["expires_in"]
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            expires_in=30 * 60
         )
 
 

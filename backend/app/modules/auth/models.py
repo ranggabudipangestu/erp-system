@@ -155,7 +155,9 @@ class AuditLog(Base):
     )
 
     id: Mapped[UUID] = mapped_column("id", PG_UUID(as_uuid=True), primary_key=True)
-    tenant_id: Mapped[UUID] = mapped_column("tenant_id", PG_UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        "tenant_id", PG_UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True
+    )
     user_id: Mapped[UUID | None] = mapped_column("user_id", PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     action: Mapped[str] = mapped_column("action", String(100), nullable=False)  # signup, login, invite, role_change, etc.
     resource: Mapped[str | None] = mapped_column("resource", String(100), nullable=True)  # user, role, tenant, etc.
