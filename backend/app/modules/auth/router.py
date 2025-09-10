@@ -99,7 +99,6 @@ def get_client_ip(request: Request) -> str:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
-
 # Signup endpoints
 @router.post("/signup", response_model=SignupResponseDto, status_code=201)
 def signup(

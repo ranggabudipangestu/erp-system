@@ -116,7 +116,9 @@ class TenantProvisioningService:
                     "tenant.manage_settings", "users.invite_user", "users.deactivate_user",
                     "roles.create_role", "finance.view_reports", "finance.post_journal",
                     "sales.create_order", "sales.sync_marketplace", "inventory.stock_in_out",
-                    "inventory.transfer_stock", "manufacturing.create_bom", "manufacturing.create_wo"
+                    "inventory.transfer_stock", "manufacturing.create_bom", "manufacturing.create_wo",
+                    # Product permissions
+                    "products.read", "products.create", "products.update", "products.delete"
                 ]
             },
             {
@@ -124,7 +126,9 @@ class TenantProvisioningService:
                 "description": "Tenant administrator",
                 "permissions": [
                     "tenant.manage_settings", "users.invite_user", "users.deactivate_user",
-                    "roles.create_role", "finance.view_reports", "sales.sync_marketplace"
+                    "roles.create_role", "finance.view_reports", "sales.sync_marketplace",
+                    # Product permissions (admin)
+                    "products.read", "products.create", "products.update", "products.delete"
                 ]
             },
             {
@@ -298,7 +302,6 @@ class SignupService:
                 "Complete company profile setup",
                 "Invite team members", 
                 "Configure business settings",
-                "Connect to marketplace platforms"
             ],
             access_token=access_token,
             refresh_token=refresh_token,
@@ -400,3 +403,5 @@ class UserService:
         self.user_tenant_repo.create(user_tenant)
 
         return map_user_to_dto(created_user)
+
+

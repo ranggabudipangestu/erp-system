@@ -1,0 +1,42 @@
+sequenceDiagram
+    participant FE as Frontend
+    participant MW as AuthMiddleware
+    participant TS as TokenService
+    participant AS as AuthService
+    participant Cache as Redis Cache
+    participant API as Business API
+
+    FE->>API: Request with JWT
+    API->>MW: Intercept request
+    
+    activate MW
+    MW->>MW: Extract Bearer token
+    MW->>TS: validateToken(token)
+    
+    activate TS
+    TS->>TS: Verify signature
+    TS->>TS: Check expiration
+    TS->>Cache: Check blacklist
+    TS-->>MW: Token claims
+    deactivate TS
+    
+    MW->>AS: checkPermission(user, resource, action)
+    
+    activate AS
+    AS->>Cache: Get user permissions
+    alt Cache miss
+        AS->>DB: Load user roles & permissions
+        AS->>Cache: Store permissions (TTL 15m)
+    end
+    AS->>AS: Evaluate permission
+    AS-->>MW: Permission result
+    deactivate AS
+    
+    alt Authorized
+        MW->>MW: Set security context
+        MW->>API: Continue request
+        API-->>FE: API response
+    else Unauthorized
+        MW-->>FE: 403 Forbidden + audit log
+    end
+    deactivate MW

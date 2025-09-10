@@ -1,0 +1,47 @@
+sequenceDiagram
+    participant TA as Tenant Admin
+    participant FE as Frontend
+    participant IC as InvitationController
+    participant IS as InvitationService
+    participant ES as EmailService
+    participant NU as New User
+    participant AS as AuthService
+    participant US as UserService
+
+    TA->>FE: Invite user form
+    FE->>IC: POST /api/invitations
+    IC->>IS: createInvitation(request)
+    
+    activate IS
+    IS->>IS: Validate email not exists
+    IS->>IS: Generate secure token
+    IS->>DB: Save invitation record
+    IS->>ES: sendInvitationEmail(invitation)
+    IS-->>IC: Invitation created
+    deactivate IS
+    
+    IC-->>FE: 201 Created
+    FE->>TA: Success notification
+    
+    Note over ES,NU: Email sent with invitation link
+    
+    NU->>FE: Click invitation link
+    FE->>IC: GET /api/invitations/{token}
+    IC->>IS: validateInvitation(token)
+    IS-->>IC: Invitation details
+    IC-->>FE: Invitation valid
+    
+    NU->>FE: Complete signup form
+    FE->>IC: POST /api/invitations/{token}/accept
+    IC->>IS: acceptInvitation(token, userDetails)
+    
+    activate IS
+    IS->>US: createUser(userDetails)
+    IS->>US: assignUserToTenant(user, tenant, roles)
+    IS->>DB: Mark invitation as ACCEPTED
+    IS->>AS: generateTokens(user)
+    IS-->>IC: User created + tokens
+    deactivate IS
+    
+    IC-->>FE: 200 OK + tokens
+    FE->>NU: Auto login + redirect to dashboard
