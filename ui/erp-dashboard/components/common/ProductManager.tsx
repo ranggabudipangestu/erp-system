@@ -160,7 +160,7 @@ const ProductManager: React.FC<ProductManagerProps> = ({
   const subtotal = products.reduce((sum, product) => sum + product.total, 0);
 
   // Default columns configuration
-  const defaultColumns = [
+  const defaultColumns: Column[] = [
     { key: 'name' as keyof Product, label: 'Products' },
     { key: 'quantity' as keyof Product, label: 'Quantity' },
     { key: 'price' as keyof Product, label: 'Unit Cost' },

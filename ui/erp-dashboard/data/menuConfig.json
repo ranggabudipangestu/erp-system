@@ -1,0 +1,151 @@
+{
+  "mainMenu": [
+    {
+      "id": "dashboard",
+      "name": "Dashboard",
+      "icon": "GridIcon",
+      "children": [
+        {
+          "id": "ecommerce",
+          "name": "Ecommerce",
+          "path": "/",
+          "pro": false
+        }
+      ]
+    },
+    {
+      "id": "sales",
+      "name": "Sales",
+      "icon": "DocsIcon",
+      "children": [
+        {
+          "id": "sales-invoice",
+          "name": "Invoice",
+          "icon": "DocsIcon",
+          "children": [
+            {
+              "id": "create-invoice",
+              "name": "Create Invoice",
+              "path": "/invoice/create",
+              "pro": false
+            },
+            {
+              "id": "invoice-list",
+              "name": "Invoice List",
+              "path": "/invoice/list",
+              "pro": false
+            }
+          ]
+        },
+        {
+          "id": "sales-order",
+          "name": "Sales Order",
+          "path": "/sales/order",
+          "pro": false
+        }
+      ]
+    },
+    {
+      "id": "purchasing",
+      "name": "Purchasing",
+      "icon": "CalenderIcon",
+      "children": [
+        {
+          "id": "purchase-order",
+          "name": "Purchase Order",
+          "path": "/purchasing/order",
+          "pro": false
+        },
+        {
+          "id": "purchase-invoice",
+          "name": "Purchase Invoice",
+          "path": "/purchasing/invoice",
+          "pro": false
+        }
+      ]
+    }
+  ],
+  "otherMenu": [
+    {
+      "id": "charts",
+      "name": "Charts",
+      "icon": "PieChartIcon",
+      "children": [
+        {
+          "id": "line-chart",
+          "name": "Line Chart",
+          "path": "/line-chart",
+          "pro": false
+        },
+        {
+          "id": "bar-chart",
+          "name": "Bar Chart",
+          "path": "/bar-chart",
+          "pro": false
+        }
+      ]
+    },
+    {
+      "id": "ui-elements",
+      "name": "UI Elements",
+      "icon": "BoxCubeIcon",
+      "children": [
+        {
+          "id": "alerts",
+          "name": "Alerts",
+          "path": "/alerts",
+          "pro": false
+        },
+        {
+          "id": "avatar",
+          "name": "Avatar",
+          "path": "/avatars",
+          "pro": false
+        },
+        {
+          "id": "badge",
+          "name": "Badge",
+          "path": "/badge",
+          "pro": false
+        },
+        {
+          "id": "buttons",
+          "name": "Buttons",
+          "path": "/buttons",
+          "pro": false
+        },
+        {
+          "id": "images",
+          "name": "Images",
+          "path": "/images",
+          "pro": false
+        },
+        {
+          "id": "videos",
+          "name": "Videos",
+          "path": "/videos",
+          "pro": false
+        }
+      ]
+    },
+    {
+      "id": "authentication",
+      "name": "Authentication",
+      "icon": "PlugInIcon",
+      "children": [
+        {
+          "id": "signin",
+          "name": "Sign In",
+          "path": "/signin",
+          "pro": false
+        },
+        {
+          "id": "signup",
+          "name": "Sign Up",
+          "path": "/signup",
+          "pro": false
+        }
+      ]
+    }
+  ]
+}
