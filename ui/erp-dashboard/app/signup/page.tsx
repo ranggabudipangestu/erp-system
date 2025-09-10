@@ -25,10 +25,13 @@ export default function SignupPage() {
       setSignupResult(result);
       setState('success');
       
-      // Optional: Store tenant info in localStorage for future use
+      // Store authentication tokens and tenant info
       if (typeof window !== 'undefined') {
+        localStorage.setItem('erp_access_token', result.access_token);
+        localStorage.setItem('erp_refresh_token', result.refresh_token);
         localStorage.setItem('erp_tenant_id', result.tenant_id);
         localStorage.setItem('erp_signup_completed', 'true');
+        localStorage.setItem('erp_token_expires', (Date.now() + (result.expires_in * 1000)).toString());
       }
     } catch (error: any) {
       console.error('Signup error:', error);

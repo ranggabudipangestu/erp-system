@@ -30,6 +30,11 @@ class SignupResponseDto(BaseModel):
         "Invite team members",
         "Configure business settings"
     ]
+    # Authentication tokens
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int  # seconds
 
 
 # Tenant Schemas
@@ -154,13 +159,29 @@ class LoginRequestDto(BaseModel):
     tenant_domain: Optional[str] = None  # For multi-tenant login
 
 
+class UserLoginDto(BaseModel):
+    id: str
+    email: str
+    name: str
+    status: str
+    is_verified: bool
+    mfa_enabled: bool
+
+
+class TenantLoginDto(BaseModel):
+    id: str
+    name: Optional[str] = None
+    domain: Optional[str] = None
+    roles: List[str]
+
+
 class LoginResponseDto(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int  # seconds
-    user: UserDto
-    tenant: TenantDto
+    user: UserLoginDto
+    tenant: TenantLoginDto
 
 
 class RefreshTokenRequestDto(BaseModel):

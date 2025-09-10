@@ -30,11 +30,13 @@ services:
       - MINIO_ACCESS_KEY=oISYtW09OnjvyhwwZWhT
       - MINIO_SECRET_KEY=r48gI52eceNdKenMyu25h5OQA3TTdPDtjhIRAGw1
       - MINIO_BUCKET=erp-reports
+      - REDIS_URL=redis://redis:6379/0
     ports:
       - "8000:8000"
     depends_on:
       - postgres
       - minio
+      - redis
     volumes:
       - ./backend:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -95,10 +97,22 @@ services:
     networks:
       - erp_network
 
+  # Redis for caching, rate limiting, etc.
+  redis:
+    image: redis:7-alpine
+    container_name: erp_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - erp_network
+
 volumes:
   postgres_data:
   metabase_data:
   minio_data:
+  redis_data:
 
 networks:
   erp_network:

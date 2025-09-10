@@ -10,6 +10,7 @@ from .repository import (
     UserRepository, 
     UserTenantRepository, 
     RoleRepository,
+    AuthTokenRepository,
     AuditLogRepository
 )
 from .service import (
@@ -18,12 +19,15 @@ from .service import (
     UserService,
     TenantProvisioningService
 )
+from .auth_service import AuthService
 from .schemas import (
     SignupRequestDto,
     SignupResponseDto, 
     TenantDto,
     UpdateTenantDto,
-    UserTenantDto
+    UserTenantDto,
+    LoginRequestDto,
+    LoginResponseDto
 )
 
 
@@ -43,6 +47,7 @@ def get_repositories(session=Depends(get_session)):
         'user_repo': UserRepository(session),
         'user_tenant_repo': UserTenantRepository(session),
         'role_repo': RoleRepository(session),
+        'auth_token_repo': AuthTokenRepository(session),
         'audit_repo': AuditLogRepository(session)
     }
 
@@ -56,6 +61,7 @@ def get_signup_service(repos=Depends(get_repositories)) -> SignupService:
         user_tenant_repo=repos['user_tenant_repo'],
         role_repo=repos['role_repo'],
         audit_repo=repos['audit_repo'],
+        auth_token_repo=repos['auth_token_repo'],
         provisioning_service=provisioning_service
     )
 
@@ -73,6 +79,15 @@ def get_user_service(repos=Depends(get_repositories)) -> UserService:
     return UserService(
         user_repo=repos['user_repo'],
         user_tenant_repo=repos['user_tenant_repo'],
+        audit_repo=repos['audit_repo']
+    )
+
+
+def get_auth_service(repos=Depends(get_repositories)) -> AuthService:
+    """Get auth service"""
+    return AuthService(
+        auth_token_repo=repos['auth_token_repo'],
+        user_repo=repos['user_repo'],
         audit_repo=repos['audit_repo']
     )
 
@@ -109,6 +124,46 @@ def signup(
         return result
     except ValueError as ex:
         raise HTTPException(status_code=400, detail=str(ex))
+    except Exception as ex:
+        # Log the error in production
+        print(ex)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/login", response_model=LoginResponseDto)
+def login(
+    payload: LoginRequestDto,
+    request: Request,
+    service: AuthService = Depends(get_auth_service)
+):
+    """
+    Authenticate user and return tokens
+    
+    This endpoint implements the login flow:
+    1. Rate limiting check
+    2. Find user by email with tenant info
+    3. Validate password
+    4. Check tenant domain (if feature flag enabled)
+    5. Generate access and refresh tokens
+    6. Log success/failure attempts
+    """
+    try:
+        client_ip = get_client_ip(request)
+        result = service.authenticate(
+            email=payload.email,
+            password=payload.password,
+            tenant_domain=payload.tenant_domain,
+            ip_address=client_ip
+        )
+        
+        if not result:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+            
+        return LoginResponseDto(**result)
+        
+    except ValueError as ex:
+        # Rate limiting or validation errors
+        raise HTTPException(status_code=429, detail=str(ex))
     except Exception as ex:
         # Log the error in production
         print(ex)

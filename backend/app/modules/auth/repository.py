@@ -1,7 +1,7 @@
 from typing import Optional, List
 from uuid import UUID
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, update
 from sqlalchemy.orm import Session, selectinload
 
 from .models import Tenant, User, UserTenant, Role, Invite, AuthToken, AuditLog
@@ -61,6 +61,18 @@ class UserRepository:
 
     def email_exists(self, email: str) -> bool:
         return self.get_by_email(email) is not None
+    
+    def get_primary_tenant(self, user_id: UUID) -> Optional['UserTenant']:
+        """Get user's primary tenant relationship"""
+        stmt = (
+            select(UserTenant)
+            .where(
+                UserTenant.user_id == user_id,
+                UserTenant.is_primary_tenant == True
+            )
+            .options(selectinload(UserTenant.tenant))
+        )
+        return self.session.scalar(stmt)
 
 
 class UserTenantRepository:
@@ -182,6 +194,63 @@ class AuthTokenRepository:
     def update(self, auth_token: AuthToken) -> AuthToken:
         self.session.flush()
         return auth_token
+    
+    def get_valid_refresh_token(self, token_value: str) -> Optional[AuthToken]:
+        """Get valid (non-expired, non-revoked) refresh token"""
+        from datetime import datetime
+        
+        stmt = (
+            select(AuthToken)
+            .where(
+                AuthToken.token_value == token_value,
+                AuthToken.token_type == "refresh",
+                AuthToken.expires_at > datetime.utcnow(),
+                AuthToken.revoked_at.is_(None)
+            )
+            .options(selectinload(AuthToken.user))
+        )
+        
+        return self.session.scalar(stmt)
+    
+    def revoke_token(self, token_value: str, user_id: UUID) -> bool:
+        """Revoke a specific token"""
+        from datetime import datetime
+        
+        stmt = (
+            update(AuthToken)
+            .where(
+                AuthToken.token_value == token_value,
+                AuthToken.user_id == user_id,
+                AuthToken.revoked_at.is_(None)
+            )
+            .values(revoked_at=datetime.utcnow())
+        )
+        
+        result = self.session.execute(stmt)
+        self.session.flush()
+        return result.rowcount > 0
+    
+    def revoke_all_user_tokens(self, user_id: UUID, tenant_id: Optional[UUID] = None) -> int:
+        """Revoke all tokens for a user, optionally scoped to tenant"""
+        from datetime import datetime
+        
+        conditions = [
+            AuthToken.user_id == user_id,
+            AuthToken.revoked_at.is_(None)
+        ]
+        
+        if tenant_id:
+            conditions.append(AuthToken.tenant_id == tenant_id)
+        
+        stmt = (
+            update(AuthToken)
+            .where(*conditions)
+            .values(revoked_at=datetime.utcnow())
+        )
+        
+        result = self.session.execute(stmt)
+        self.session.flush()
+        return result.rowcount
 
 
 class AuditLogRepository:

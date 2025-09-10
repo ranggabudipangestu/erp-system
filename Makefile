@@ -2,6 +2,7 @@ SHELL := /bin/bash
 
 # Paths and tools
 BACKEND_DIR := backend
+FRONTEND_DIR := ui/erp-dashboard
 
 .PHONY: help install mig-add migrate run dev docker-up docker-down docker-logs docker-migrate docker-revision
 
@@ -32,7 +33,12 @@ run: ## Run backend locally (applies migrations first)
 	cd $(BACKEND_DIR) && bash scripts/start.sh
 
 dev: ## Run backend in development mode
+	export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig:/opt/homebrew/opt/libffi/lib/pkgconfig:$$PKG_CONFIG_PATH" && \
+	export LDFLAGS="-L/opt/homebrew/opt/libffi/lib" && \
+	export CPPFLAGS="-I/opt/homebrew/opt/libffi/include" && \
 	cd $(BACKEND_DIR) && uvicorn app.main:app --host 0.0.0.0 --port 8000
+dev-frontend: ## Run frontend in development mode
+	cd $(FRONTEND_DIR) && npm run dev
 
 docker-up: ## Start services with Docker Compose
 	docker compose up -d

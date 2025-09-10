@@ -64,13 +64,14 @@ The system follows a **modular monolith** architecture with clear separation of 
 
 2. **Start the application**
    ```bash
-   docker compose up -d postgres api frontend metabase
+   docker compose up -d postgres redis minio api frontend metabase
    ```
 
 3. **Access the applications**
    - **Frontend**: http://localhost:3000
-   - **API**: http://localhost:5000
-   - **API OpenAPI**: http://localhost:5000/docs
+   - **API**: http://localhost:8000
+   - **API OpenAPI**: http://localhost:8000/docs
+   - **Redis**: redis://localhost:6379
    - **Metabase**: http://localhost:3001
 
 ### Development

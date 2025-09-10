@@ -15,6 +15,7 @@ from .repository import (
     AuthTokenRepository,
     AuditLogRepository
 )
+from .auth_service import AuthService
 from .models import Tenant, User, UserTenant, Role, Invite, AuthToken, AuditLog
 from .schemas import (
     SignupRequestDto, 
@@ -183,6 +184,7 @@ class SignupService:
         user_tenant_repo: UserTenantRepository,
         role_repo: RoleRepository,
         audit_repo: AuditLogRepository,
+        auth_token_repo: AuthTokenRepository,
         provisioning_service: TenantProvisioningService
     ):
         self.tenant_repo = tenant_repo
@@ -190,7 +192,9 @@ class SignupService:
         self.user_tenant_repo = user_tenant_repo
         self.role_repo = role_repo
         self.audit_repo = audit_repo
+        self.auth_token_repo = auth_token_repo
         self.provisioning_service = provisioning_service
+        self.auth_service = AuthService(auth_token_repo)
 
     def signup(self, payload: SignupRequestDto, ip_address: str = None) -> SignupResponseDto:
         """
@@ -281,6 +285,9 @@ class SignupService:
         )
         self.audit_repo.create(audit_log)
 
+        # Generate authentication tokens
+        tokens = self.auth_service.generate_tokens(created_user, tenant_id, ip_address)
+
         return SignupResponseDto(
             tenant_id=tenant_id,
             message="Tenant created successfully",
@@ -289,7 +296,11 @@ class SignupService:
                 "Invite team members", 
                 "Configure business settings",
                 "Connect to marketplace platforms"
-            ]
+            ],
+            access_token=tokens["access_token"],
+            refresh_token=tokens["refresh_token"],
+            token_type=tokens["token_type"],
+            expires_in=tokens["expires_in"]
         )
 
 

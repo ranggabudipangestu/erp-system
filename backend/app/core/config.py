@@ -19,6 +19,21 @@ class Settings(BaseModel):
         if os.getenv("CORS_ORIGINS")
         else ["http://localhost:3000"]
     )
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-production-please")
+    
+    # Redis Configuration
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    
+    # Feature Flags
+    REQUIRE_TENANT_DOMAIN: bool = os.getenv("REQUIRE_TENANT_DOMAIN", "false").lower() == "true"
+    
+    # Rate Limiting
+    LOGIN_RATE_LIMIT: int = int(os.getenv("LOGIN_RATE_LIMIT", "5"))  # attempts per minute
+    LOGIN_RATE_WINDOW: int = int(os.getenv("LOGIN_RATE_WINDOW", "60"))  # seconds
+
+
+def get_settings() -> Settings:
+    return Settings()
 
 
 settings = Settings()

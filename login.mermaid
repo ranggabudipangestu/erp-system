@@ -1,0 +1,39 @@
+sequenceDiagram
+    participant U as User
+    participant FE as Frontend
+    participant AC as AuthController
+    participant AS as AuthService
+    participant TS as TokenService
+    participant US as UserService
+    participant Cache as Redis Cache
+    participant DB as Database
+
+    U->>FE: Enter credentials
+    FE->>AC: POST /api/auth/login
+    
+    Note over AC: Rate limiting check
+    AC->>AS: authenticate(email, password)
+    
+    activate AS
+    AS->>US: findByEmail(email)
+    US->>DB: Query user
+    DB-->>US: User record
+    US-->>AS: User (with tenant info)
+    
+    AS->>AS: validatePassword(plainText, hash)
+    
+    alt Password valid
+        AS->>TS: generateAccessToken(user)
+        AS->>TS: generateRefreshToken(user)
+        AS->>Cache: Store session
+        AS->>DB: Save auth_token record
+        AS-->>AC: AuthResponse(tokens, user)
+        AC-->>FE: 200 OK + tokens
+        FE->>U: Redirect to dashboard
+    else Password invalid
+        AS->>DB: Log failed attempt
+        AS-->>AC: Authentication failed
+        AC-->>FE: 401 Unauthorized
+        FE->>U: Show error message
+    end
+    deactivate AS

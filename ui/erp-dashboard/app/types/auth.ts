@@ -18,6 +18,11 @@ export interface SignupResponse {
   tenant_id: string;
   message: string;
   next_steps: string[];
+  // Authentication tokens
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number; // seconds
 }
 
 export interface TenantSettings {
@@ -69,11 +74,27 @@ export interface LoginRequest {
   tenant_domain?: string;
 }
 
+export interface UserLogin {
+  id: string;
+  email: string;
+  name: string;
+  status: string;
+  is_verified: boolean;
+  mfa_enabled: boolean;
+}
+
+export interface TenantLogin {
+  id: string;
+  name?: string;
+  domain?: string;
+  roles: string[];
+}
+
 export interface LoginResponse {
   access_token: string;
   refresh_token: string;
   token_type: string;
   expires_in: number;
-  user: User;
-  tenant: Tenant;
+  user: UserLogin;
+  tenant: TenantLogin;
 }
