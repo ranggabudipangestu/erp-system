@@ -106,7 +106,7 @@ export default function InvoiceList() {
               All Invoices
             </h3>
             <Link
-              href="/invoice/create"
+              href="/sales/invoice/create"
               className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-2 text-center font-medium text-white hover:bg-opacity-90"
             >
               Create New Invoice

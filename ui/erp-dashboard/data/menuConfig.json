@@ -13,6 +13,25 @@
         }
       ]
     },
+     {
+      "id": "user-management",
+      "name": "User Management",
+      "icon": "UserCircleIcon",
+      "children": [
+        {
+          "id": "user",
+          "name": "User",
+          "path": "/user-management/users",
+          "pro": false
+        },
+        {
+          "id": "role",
+          "name": "Role",
+          "path": "/user-management/roles",
+          "pro": false
+        }
+      ]
+    },
     {
       "id": "sales",
       "name": "Sales",
@@ -26,13 +45,13 @@
             {
               "id": "create-invoice",
               "name": "Create Invoice",
-              "path": "/invoice/create",
+              "path": "/sales/invoice/create",
               "pro": false
             },
             {
               "id": "invoice-list",
               "name": "Invoice List",
-              "path": "/invoice/list",
+              "path": "/sales/invoice/list",
               "pro": false
             }
           ]

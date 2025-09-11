@@ -98,3 +98,34 @@ export interface LoginResponse {
   user: UserLogin;
   tenant: TenantLogin;
 }
+
+// Invitation types
+export interface CreateInviteRequest {
+  email: string;
+  roles: string[];
+}
+
+export interface AcceptInviteRequest {
+  token: string;
+  name: string;
+  password: string;
+}
+
+export interface Invite {
+  id: string;
+  tenant_id: string;
+  email: string;
+  roles: string[];
+  status: string;
+  expires_at: string;
+  created_at: string;
+  accepted_at?: string;
+}
+
+export interface InviteValidationResponse {
+  invite: Invite;
+  tenant?: {
+    name: string;
+    domain?: string;
+  };
+}

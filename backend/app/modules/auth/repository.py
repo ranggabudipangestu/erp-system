@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select, and_, update
 from sqlalchemy.orm import Session, selectinload
 
-from .models import Tenant, User, UserTenant, Role, Invite, AuthToken, AuditLog, PermissionPolicy
+from .models import Tenant, User, UserTenant, Role, Invite, AuthToken, AuditLog
 
 
 class TenantRepository:

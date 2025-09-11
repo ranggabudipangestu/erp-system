@@ -1,6 +1,7 @@
 import hashlib
 import secrets
-from datetime import datetime, timedelta
+import os
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 from uuid import UUID, uuid4
 
@@ -25,7 +26,13 @@ from .schemas import (
     UserTenantDto,
     CreateUserDto,
     UpdateTenantDto,
-    TenantSettingsDto
+    TenantSettingsDto,
+    CreateInviteDto,
+    AcceptInviteDto,
+    InviteDto,
+    LoginResponseDto,
+    UserLoginDto,
+    TenantLoginDto
 )
 
 
@@ -100,6 +107,19 @@ def map_user_tenant_to_dto(entity: UserTenant) -> UserTenantDto:
     )
 
 
+def map_invite_to_dto(entity: Invite) -> InviteDto:
+    return InviteDto(
+        id=entity.id,
+        tenant_id=entity.tenant_id,
+        email=entity.email,
+        roles=entity.roles,
+        status=entity.status,
+        expires_at=entity.expires_at,
+        created_at=entity.created_at,
+        accepted_at=entity.accepted_at,
+    )
+
+
 class TenantProvisioningService:
     """Service responsible for tenant provisioning and setup"""
     
@@ -162,7 +182,7 @@ class TenantProvisioningService:
                 description=role_data["description"],
                 permissions=role_data["permissions"],
                 is_system_role=False,
-                created_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc)
             )
             roles.append(role)
 
@@ -233,7 +253,7 @@ class SignupService:
             region="ap-southeast-1",  # Default region
             deployment_mode="shared",  # Start with shared mode
             is_active=True,
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         
         # Setup tenant settings
@@ -254,7 +274,7 @@ class SignupService:
             status="active",
             is_verified=False,  # Email verification can be implemented later
             mfa_enabled=False,
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         created_user = self.user_repo.create(user)
 
@@ -268,7 +288,7 @@ class SignupService:
             tenant_id=tenant_id,
             roles=["owner"],  # Owner role
             is_primary_tenant=True,  # First tenant is primary
-            joined_at=datetime.utcnow()
+            joined_at=datetime.now(timezone.utc)
         )
         self.user_tenant_repo.create(user_tenant)
 
@@ -287,7 +307,7 @@ class SignupService:
                 "owner_email": payload.owner.email
             },
             ip_address=ip_address,
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         self.audit_repo.create(audit_log)
 
@@ -335,7 +355,7 @@ class TenantService:
             new_settings = payload.settings.dict(exclude_unset=True)
             tenant.settings = {**current_settings, **new_settings}
 
-        tenant.updated_at = datetime.utcnow()
+        tenant.updated_at = datetime.now(timezone.utc)
         
         updated_tenant = self.tenant_repo.update(tenant)
 
@@ -348,7 +368,7 @@ class TenantService:
             resource="tenant",
             resource_id=str(tenant_id),
             payload=payload.dict(exclude_unset=True),
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         self.audit_repo.create(audit_log)
 
@@ -387,7 +407,7 @@ class UserService:
             status="active",
             is_verified=False,
             mfa_enabled=False,
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         created_user = self.user_repo.create(user)
 
@@ -398,10 +418,267 @@ class UserService:
             tenant_id=tenant_id,
             roles=roles or [],
             is_primary_tenant=False,
-            joined_at=datetime.utcnow()
+            joined_at=datetime.now(timezone.utc)
         )
         self.user_tenant_repo.create(user_tenant)
 
         return map_user_to_dto(created_user)
+
+
+class InvitationService:
+    def __init__(
+        self, 
+        invite_repo: InviteRepository,
+        user_repo: UserRepository,
+        user_tenant_repo: UserTenantRepository,
+        tenant_repo: TenantRepository,
+        audit_repo: AuditLogRepository,
+        auth_token_repo: AuthTokenRepository
+    ):
+        self.invite_repo = invite_repo
+        self.user_repo = user_repo
+        self.user_tenant_repo = user_tenant_repo
+        self.tenant_repo = tenant_repo
+        self.audit_repo = audit_repo
+        self.auth_token_repo = auth_token_repo
+        
+        # Import email service
+        from .email_service import EmailService
+        self.email_service = EmailService()
+        
+        # Import token service
+        from .token_service import TokenService
+        self.token_service = TokenService(auth_token_repo)
+
+    def create_invitation(
+        self, 
+        payload: CreateInviteDto, 
+        tenant_id: UUID, 
+        inviter_user_id: UUID, 
+        ip_address: str = None
+    ) -> InviteDto:
+        """
+        Create and send invitation to a new user.
+        
+        Steps:
+        1. Validate email doesn't already exist as a user
+        2. Check if there's already a pending invitation for this email in this tenant
+        3. Generate secure token
+        4. Create invitation record
+        5. Send invitation email
+        6. Create audit log
+        """
+        
+        # Validate email doesn't already exist as user
+        if self.user_repo.email_exists(payload.email):
+            raise ValueError(f"User with email '{payload.email}' already exists")
+        
+        # Check for existing pending invitation
+        existing_invite = self.invite_repo.get_by_email_and_tenant(payload.email, tenant_id)
+        if existing_invite:
+            raise ValueError(f"Pending invitation already exists for email '{payload.email}'")
+        
+        # Get tenant info for email
+        tenant = self.tenant_repo.get_by_id(tenant_id)
+        if not tenant:
+            raise ValueError(f"Tenant with ID '{tenant_id}' not found")
+        
+        # Get inviter info for email
+        inviter = self.user_repo.get_by_id(inviter_user_id)
+        if not inviter:
+            raise ValueError(f"Inviter user with ID '{inviter_user_id}' not found")
+        
+        # Generate secure token
+        token = generate_secure_token()
+        
+        # Calculate expiration (7 days from now)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        
+        # Create invitation
+        invitation = Invite(
+            id=uuid4(),
+            tenant_id=tenant_id,
+            email=payload.email,
+            roles=payload.roles,
+            token=token,
+            expires_at=expires_at,
+            status="pending",
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        created_invitation = self.invite_repo.create(invitation)
+        
+        # Send invitation email
+        invitation_link = f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/accept-invitation/{token}"
+        
+        email_sent = self.email_service.send_invitation_email(
+            recipient_email=payload.email,
+            recipient_name="",  # We don't have the name yet
+            company_name=tenant.name,
+            inviter_name=inviter.name,
+            invitation_link=invitation_link,
+            roles=payload.roles
+        )
+        
+        # Create audit log
+        audit_log = AuditLog(
+            id=uuid4(),
+            tenant_id=tenant_id,
+            user_id=inviter_user_id,
+            action="invite.created",
+            resource="invite",
+            resource_id=str(created_invitation.id),
+            payload={
+                "email": payload.email,
+                "roles": payload.roles,
+                "email_sent": email_sent
+            },
+            ip_address=ip_address,
+            created_at=datetime.now(timezone.utc)
+        )
+        self.audit_repo.create(audit_log)
+        
+        if not email_sent:
+            # Log warning but don't fail the invitation creation
+            print(f"Warning: Failed to send invitation email to {payload.email}")
+        
+        return map_invite_to_dto(created_invitation)
+
+    def validate_invitation(self, token: str) -> InviteDto:
+        """
+        Validate invitation token and return invitation details.
+        
+        Checks:
+        1. Token exists
+        2. Token not expired
+        3. Invitation status is pending
+        """
+        
+        invitation = self.invite_repo.get_by_token(token)
+        if not invitation:
+            raise ValueError("Invalid invitation token")
+        
+        if invitation.status != "pending":
+            raise ValueError("Invitation has already been used or expired")
+        
+        if invitation.expires_at < datetime.now(timezone.utc):
+            # Mark as expired
+            invitation.status = "expired"
+            self.invite_repo.update(invitation)
+            raise ValueError("Invitation has expired")
+        
+        return map_invite_to_dto(invitation)
+
+    def accept_invitation(
+        self, 
+        token: str, 
+        payload: AcceptInviteDto, 
+        ip_address: str = None
+    ) -> LoginResponseDto:
+        """
+        Accept invitation and create user account.
+        
+        Steps:
+        1. Validate invitation token
+        2. Create user account
+        3. Assign user to tenant with specified roles
+        4. Mark invitation as accepted
+        5. Generate auth tokens
+        6. Create audit log
+        """
+        
+        # Validate invitation
+        invitation = self.invite_repo.get_by_token(token)
+        if not invitation:
+            raise ValueError("Invalid invitation token")
+        
+        if invitation.status != "pending":
+            raise ValueError("Invitation has already been used or expired")
+        
+        if invitation.expires_at < datetime.now(timezone.utc):
+            # Mark as expired
+            invitation.status = "expired"
+            self.invite_repo.update(invitation)
+            raise ValueError("Invitation has expired")
+        
+        # Check if user already exists (double-check)
+        if self.user_repo.email_exists(invitation.email):
+            raise ValueError(f"User with email '{invitation.email}' already exists")
+        
+        # Create user account
+        user_id = uuid4()
+        user = User(
+            id=user_id,
+            email=invitation.email,
+            password_hash=hash_password(payload.password),
+            name=payload.name,
+            status="active",
+            is_verified=True,  # Email is verified through invitation
+            mfa_enabled=False,
+            created_at=datetime.now(timezone.utc)
+        )
+        created_user = self.user_repo.create(user)
+        
+        # Create user-tenant relationship
+        user_tenant = UserTenant(
+            id=uuid4(),
+            user_id=user_id,
+            tenant_id=invitation.tenant_id,
+            roles=invitation.roles,
+            is_primary_tenant=True,  # First tenant is primary
+            joined_at=datetime.now(timezone.utc)
+        )
+        self.user_tenant_repo.create(user_tenant)
+        
+        # Mark invitation as accepted
+        invitation.status = "accepted"
+        invitation.accepted_at = datetime.now(timezone.utc)
+        self.invite_repo.update(invitation)
+        
+        # Generate auth tokens
+        access_token = self.token_service.generate_access_token(created_user, invitation.tenant_id)
+        refresh_token = self.token_service.generate_refresh_token(created_user, invitation.tenant_id, ip_address)
+        
+        # Get tenant info for response
+        tenant = self.tenant_repo.get_by_id(invitation.tenant_id)
+        
+        # Create audit log
+        audit_log = AuditLog(
+            id=uuid4(),
+            tenant_id=invitation.tenant_id,
+            user_id=user_id,
+            action="invite.accepted",
+            resource="invite",
+            resource_id=str(invitation.id),
+            payload={
+                "email": invitation.email,
+                "roles": invitation.roles
+            },
+            ip_address=ip_address,
+            created_at=datetime.now(timezone.utc)
+        )
+        self.audit_repo.create(audit_log)
+        
+        # Return login response
+        return LoginResponseDto(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            expires_in=30 * 60,  # 30 minutes
+            user=UserLoginDto(
+                id=str(created_user.id),
+                email=created_user.email,
+                name=created_user.name,
+                status=created_user.status,
+                is_verified=created_user.is_verified,
+                mfa_enabled=created_user.mfa_enabled
+            ),
+            tenant=TenantLoginDto(
+                id=str(invitation.tenant_id),
+                name=tenant.name if tenant else None,
+                domain=tenant.domain if tenant else None,
+                roles=invitation.roles
+            )
+        )
 
 

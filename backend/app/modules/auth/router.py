@@ -10,6 +10,7 @@ from .repository import (
     UserRepository, 
     UserTenantRepository, 
     RoleRepository,
+    InviteRepository,
     AuthTokenRepository,
     AuditLogRepository
 )
@@ -17,7 +18,8 @@ from .service import (
     SignupService, 
     TenantService, 
     UserService,
-    TenantProvisioningService
+    TenantProvisioningService,
+    InvitationService
 )
 from .auth_service import AuthService
 from .schemas import (
@@ -27,7 +29,10 @@ from .schemas import (
     UpdateTenantDto,
     UserTenantDto,
     LoginRequestDto,
-    LoginResponseDto
+    LoginResponseDto,
+    CreateInviteDto,
+    AcceptInviteDto,
+    InviteDto
 )
 
 
@@ -47,6 +52,7 @@ def get_repositories(session=Depends(get_session)):
         'user_repo': UserRepository(session),
         'user_tenant_repo': UserTenantRepository(session),
         'role_repo': RoleRepository(session),
+        'invite_repo': InviteRepository(session),
         'auth_token_repo': AuthTokenRepository(session),
         'audit_repo': AuditLogRepository(session)
     }
@@ -89,6 +95,18 @@ def get_auth_service(repos=Depends(get_repositories)) -> AuthService:
         auth_token_repo=repos['auth_token_repo'],
         user_repo=repos['user_repo'],
         audit_repo=repos['audit_repo']
+    )
+
+
+def get_invitation_service(repos=Depends(get_repositories)) -> InvitationService:
+    """Get invitation service"""
+    return InvitationService(
+        invite_repo=repos['invite_repo'],
+        user_repo=repos['user_repo'],
+        user_tenant_repo=repos['user_tenant_repo'],
+        tenant_repo=repos['tenant_repo'],
+        audit_repo=repos['audit_repo'],
+        auth_token_repo=repos['auth_token_repo']
     )
 
 
@@ -219,21 +237,128 @@ def get_primary_tenant(
     return tenant
 
 
+# Invitation endpoints
+@router.post("/invitations", response_model=InviteDto, status_code=201)
+def create_invitation(
+    payload: CreateInviteDto,
+    request: Request,
+    tenant_id: UUID,  # This should come from JWT token in real implementation
+    inviter_user_id: UUID,  # This should come from JWT token in real implementation
+    service: InvitationService = Depends(get_invitation_service)
+):
+    """
+    Create and send invitation to a new user.
+    
+    This endpoint implements the invitation creation flow:
+    1. Validates email doesn't already exist as a user
+    2. Checks for existing pending invitations
+    3. Generates secure token
+    4. Creates invitation record
+    5. Sends invitation email
+    6. Creates audit log
+    """
+    try:
+        client_ip = get_client_ip(request)
+        result = service.create_invitation(payload, tenant_id, inviter_user_id, client_ip)
+        return result
+    except ValueError as ex:
+        raise HTTPException(status_code=400, detail=str(ex))
+    except Exception as ex:
+        # Log the error in production
+        print(f"Failed to create invitation: {ex}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/invitations/{token}", response_model=InviteDto)
+def validate_invitation(
+    token: str,
+    service: InvitationService = Depends(get_invitation_service)
+):
+    """
+    Validate invitation token and return invitation details.
+    
+    This endpoint checks:
+    1. Token exists
+    2. Token not expired
+    3. Invitation status is pending
+    """
+    try:
+        result = service.validate_invitation(token)
+        return result
+    except ValueError as ex:
+        raise HTTPException(status_code=400, detail=str(ex))
+    except Exception as ex:
+        # Log the error in production
+        print(f"Failed to validate invitation: {ex}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/invitations/{token}/accept", response_model=LoginResponseDto)
+def accept_invitation(
+    token: str,
+    payload: AcceptInviteDto,
+    request: Request,
+    service: InvitationService = Depends(get_invitation_service)
+):
+    """
+    Accept invitation and create user account.
+    
+    This endpoint implements the invitation acceptance flow:
+    1. Validates invitation token
+    2. Creates user account
+    3. Assigns user to tenant with specified roles
+    4. Marks invitation as accepted
+    5. Generates auth tokens
+    6. Creates audit log
+    7. Returns login response with tokens
+    """
+    try:
+        client_ip = get_client_ip(request)
+        result = service.accept_invitation(token, payload, client_ip)
+        return result
+    except ValueError as ex:
+        raise HTTPException(status_code=400, detail=str(ex))
+    except Exception as ex:
+        # Log the error in production
+        print(f"Failed to accept invitation: {ex}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# Test email endpoint (development only)
+@router.post("/test-email")
+def test_email(recipient_email: str = "test@example.com"):
+    """Test email configuration by sending a test email"""
+    try:
+        from .email_service import EmailService
+        email_service = EmailService()
+        
+        success = email_service.send_test_email(recipient_email)
+        
+        return {
+            "status": "success" if success else "failed",
+            "message": f"Test email {'sent' if success else 'failed'} to {recipient_email}",
+            "recipient": recipient_email
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error testing email: {str(e)}",
+            "recipient": recipient_email
+        }
+
+
 # Health check endpoint
 @router.get("/health")
 def health_check():
-    """Health check endpoint for signup service"""
+    """Health check endpoint for auth service"""
     return {"status": "healthy", "service": "auth"}
 
 
 # TODO: Add these endpoints in future iterations:
-# - POST /auth/login (authentication)
 # - POST /auth/refresh (token refresh)  
 # - POST /auth/logout (logout)
 # - POST /auth/password/forgot (password reset request)
 # - POST /auth/password/reset (password reset)
-# - POST /users/invite (invite user)
-# - POST /users/accept-invite (accept invitation)
 # - GET /users (list users in tenant)
 # - PATCH /users/{id} (update user)
 # - GET /roles (list roles)

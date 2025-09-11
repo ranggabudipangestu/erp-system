@@ -12,7 +12,6 @@ from app.modules.auth.repository import (
     RoleRepository,
     AuthTokenRepository,
 )
-from app.modules.auth.repository import PermissionPolicyRepository  # type: ignore
 from app.modules.auth.token_service import TokenService
 
 

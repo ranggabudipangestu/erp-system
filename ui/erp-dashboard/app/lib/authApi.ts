@@ -1,4 +1,4 @@
-import { SignupRequest, SignupResponse, LoginRequest, LoginResponse } from '@/types/auth';
+import { SignupRequest, SignupResponse, LoginRequest, LoginResponse, CreateInviteRequest, Invite, AcceptInviteRequest } from '@/types/auth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -88,6 +88,36 @@ class AuthApi {
       method: 'POST',
       body: JSON.stringify({ token, new_password: newPassword }),
     });
+  }
+
+  // Invitation methods
+  async createInvitation(data: CreateInviteRequest, tenantId: string, inviterUserId: string): Promise<Invite> {
+    const response = await this.fetchWithError(`/auth/invitations?tenant_id=${tenantId}&inviter_user_id=${inviterUserId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    return response.json();
+  }
+
+  async validateInvitation(token: string): Promise<Invite> {
+    const response = await this.fetchWithError(`/auth/invitations/${token}`, {
+      method: 'GET',
+    });
+
+    return response.json();
+  }
+
+  async acceptInvitation(token: string, data: AcceptInviteRequest): Promise<LoginResponse> {
+    const response = await this.fetchWithError(`/auth/invitations/${token}/accept`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+
+    return response.json();
   }
 }
 

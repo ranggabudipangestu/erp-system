@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SimpleSignupForm from '@/components/SimpleSignupForm';
 import OnboardingSuccess from '@/components/OnboardingSuccess';
-import { authApi } from '../lib/authApi';
+import { authApi } from '@/app/lib/authApi';
 import { SignupRequest, SignupResponse } from '@/types/auth';
 
 type SignupState = 'form' | 'success' | 'error';
