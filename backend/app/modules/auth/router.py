@@ -32,7 +32,14 @@ from .schemas import (
     LoginResponseDto,
     CreateInviteDto,
     AcceptInviteDto,
-    InviteDto
+    InviteDto,
+    ForgotPasswordRequestDto,
+    ForgotPasswordResponseDto,
+    ValidateResetTokenResponseDto,
+    ResetPasswordRequestDto,
+    ResetPasswordResponseDto,
+    ChangePasswordRequestDto,
+    ChangePasswordResponseDto
 )
 
 
@@ -108,6 +115,20 @@ def get_invitation_service(repos=Depends(get_repositories)) -> InvitationService
         audit_repo=repos['audit_repo'],
         auth_token_repo=repos['auth_token_repo']
     )
+
+
+def get_password_service(repos=Depends(get_repositories)):
+    """Get password service"""
+    try:
+        from .password_service import PasswordService
+        return PasswordService(
+            user_repo=repos['user_repo'],
+            audit_repo=repos['audit_repo'],
+            user_tenant_repo=repos['user_tenant_repo']
+        )
+    except Exception as e:
+        print(f"Error creating PasswordService: {e}")
+        raise
 
 
 def get_client_ip(request: Request) -> str:
@@ -324,6 +345,136 @@ def accept_invitation(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+# Password Reset Endpoints
+@router.post("/password/forgot", response_model=ForgotPasswordResponseDto)
+def forgot_password(
+    payload: ForgotPasswordRequestDto,
+    request: Request,
+    service = Depends(get_password_service)
+):
+    """
+    Initiate password reset process by sending reset email.
+    Always returns success for security (doesn't reveal if email exists).
+    
+    This endpoint implements the forgot password flow:
+    1. Look for user by email
+    2. Generate secure token (if user exists)
+    3. Store token in Redis with 15min TTL
+    4. Send reset email with reset link
+    5. Create audit log
+    6. Always return success for security
+    """
+    try:
+        client_ip = get_client_ip(request)
+        success = service.initiate_password_reset(payload.email, client_ip)
+        
+        return ForgotPasswordResponseDto(
+            message="If your email is registered, you will receive password reset instructions.",
+            success=True
+        )
+        
+    except Exception as ex:
+        # Log the error in production but still return success for security
+        print(f"Error in forgot password: {ex}")
+        return ForgotPasswordResponseDto(
+            message="If your email is registered, you will receive password reset instructions.",
+            success=True
+        )
+
+
+@router.get("/password/reset/{token}", response_model=ValidateResetTokenResponseDto)
+def validate_reset_token(
+    token: str,
+    service = Depends(get_password_service)
+):
+    """
+    Validate reset token and return status.
+    
+    This endpoint checks:
+    1. Token exists in Redis
+    2. Token not expired
+    3. Associated user still exists
+    """
+    try:
+        result = service.validate_reset_token(token)
+        return ValidateResetTokenResponseDto(**result)
+        
+    except Exception as ex:
+        print(f"Error validating reset token: {ex}")
+        return ValidateResetTokenResponseDto(
+            valid=False,
+            message="Token validation failed"
+        )
+
+
+@router.post("/password/reset", response_model=ResetPasswordResponseDto)
+def reset_password(
+    payload: ResetPasswordRequestDto,
+    request: Request,
+    service = Depends(get_password_service)
+):
+    """
+    Reset password using valid token.
+    
+    This endpoint implements the password reset flow:
+    1. Validate token and get associated email
+    2. Validate new password strength requirements
+    3. Update user password with new hash
+    4. Revoke the used token
+    5. Revoke all user sessions for security
+    6. Send confirmation email
+    7. Create audit log
+    """
+    try:
+        client_ip = get_client_ip(request)
+        result = service.reset_password(payload.token, payload.new_password, client_ip)
+        return ResetPasswordResponseDto(**result)
+        
+    except Exception as ex:
+        print(f"Error resetting password: {ex}")
+        return ResetPasswordResponseDto(
+            success=False,
+            message="Password reset failed"
+        )
+
+
+@router.post("/password/change", response_model=ChangePasswordResponseDto)
+def change_password(
+    payload: ChangePasswordRequestDto,
+    request: Request,
+    user_id: UUID,  # This should come from JWT token in real implementation
+    service = Depends(get_password_service)
+):
+    """
+    Change password for authenticated user.
+    
+    This endpoint implements the password change flow:
+    1. Verify current password
+    2. Validate new password strength requirements
+    3. Check new password is different from current
+    4. Update user password with new hash
+    5. Revoke all user sessions for security
+    6. Send confirmation email
+    7. Create audit log
+    """
+    try:
+        client_ip = get_client_ip(request)
+        result = service.change_password(
+            user_id=user_id,
+            current_password=payload.current_password,
+            new_password=payload.new_password,
+            ip_address=client_ip
+        )
+        return ChangePasswordResponseDto(**result)
+        
+    except Exception as ex:
+        print(f"Error changing password: {ex}")
+        return ChangePasswordResponseDto(
+            success=False,
+            message="Password change failed"
+        )
+
+
 # Test email endpoint (development only)
 @router.post("/test-email")
 def test_email(recipient_email: str = "test@example.com"):
@@ -357,8 +508,6 @@ def health_check():
 # TODO: Add these endpoints in future iterations:
 # - POST /auth/refresh (token refresh)  
 # - POST /auth/logout (logout)
-# - POST /auth/password/forgot (password reset request)
-# - POST /auth/password/reset (password reset)
 # - GET /users (list users in tenant)
 # - PATCH /users/{id} (update user)
 # - GET /roles (list roles)

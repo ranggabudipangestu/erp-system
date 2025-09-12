@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import SiginForm from '@/components/auth/SignInForm';
+import LoginForm from '@/components/auth/LoginForm';
 import Alert from '@/components/ui/alert/Alert';
 import { authApi } from '../lib/authApi';
 import { LoginRequest } from '@/types/auth';
@@ -86,7 +86,7 @@ export default function LoginPage() {
     return (
       <>
         <div className="relative">
-          <SiginForm 
+          <LoginForm 
             onSubmit={handleLogin} 
             isLoading={isLoading} 
             requireTenantDomain={requireTenantDomain}

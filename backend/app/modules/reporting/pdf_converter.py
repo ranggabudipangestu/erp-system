@@ -1,8 +1,8 @@
 from io import BytesIO
 from typing import Dict, Any
-
+import os
+import platform
 from jinja2 import Template
-from weasyprint import HTML, CSS
 
 
 class PDFConverter:
@@ -12,16 +12,37 @@ class PDFConverter:
     def html_to_pdf(html_content: str, css_content: str = None) -> bytes:
         """Convert HTML content to PDF bytes."""
         try:
+            # On macOS with Homebrew, ensure dynamic loader can see Homebrew libs
+            if platform.system() == "Darwin":
+                brew_libs = ["/opt/homebrew/lib", "/usr/local/lib"]
+                current = os.environ.get("DYLD_LIBRARY_PATH", "")
+                parts = [p for p in current.split(":") if p]
+                for path in brew_libs:
+                    if path not in parts and os.path.isdir(path):
+                        parts.append(path)
+                if parts:
+                    os.environ["DYLD_LIBRARY_PATH"] = ":".join(parts)
+
+            # Import WeasyPrint lazily so the app can start without system deps
+            try:
+                from weasyprint import HTML, CSS  # type: ignore
+            except Exception as imp_err:
+                raise RuntimeError(
+                    "WeasyPrint is not fully available. Install system libraries: "
+                    "Pango, Cairo, GDK-PixBuf, HarfBuzz, and libffi. "
+                    "See docs/weasyprint-setup.md and ensure Homebrew libs are in DYLD_LIBRARY_PATH on macOS."
+                ) from imp_err
+
             html = HTML(string=html_content)
-            
+
             if css_content:
                 css = CSS(string=css_content)
                 pdf_bytes = html.write_pdf(stylesheets=[css])
             else:
                 pdf_bytes = html.write_pdf()
-                
+
             return pdf_bytes
-            
+
         except Exception as e:
             raise RuntimeError(f"Failed to convert HTML to PDF: {e}")
 

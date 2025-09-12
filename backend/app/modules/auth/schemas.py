@@ -204,9 +204,35 @@ class ForgotPasswordRequestDto(BaseModel):
     email: EmailStr
 
 
+class ForgotPasswordResponseDto(BaseModel):
+    message: str
+    success: bool = True
+
+
+class ValidateResetTokenResponseDto(BaseModel):
+    valid: bool
+    email: Optional[str] = None
+    message: str
+
+
 class ResetPasswordRequestDto(BaseModel):
     token: str
     new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class ResetPasswordResponseDto(BaseModel):
+    success: bool
+    message: str
+
+
+class ChangePasswordRequestDto(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class ChangePasswordResponseDto(BaseModel):
+    success: bool
+    message: str
 
 
 # MFA Schemas

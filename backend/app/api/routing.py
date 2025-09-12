@@ -22,6 +22,13 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(master_data_router, prefix="/manufacture", tags=["Manufacture"])
     app.include_router(master_data_router, prefix="/user", tags=["User"])
 
-    # Reporting module
-    from app.modules.reporting.router import router as reporting_router
-    app.include_router(reporting_router, prefix="/reporting", tags=["Reporting"])
+    # Reporting module (optional if WeasyPrint system deps are missing)
+    try:
+        from app.modules.reporting.router import router as reporting_router
+        app.include_router(reporting_router, prefix="/reporting", tags=["Reporting"])
+    except Exception as e:
+        # Avoid crashing the whole app when optional native deps are missing
+        import logging
+        logging.getLogger(__name__).warning(
+            "Reporting module disabled: %s", e
+        )

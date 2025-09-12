@@ -303,6 +303,400 @@ The ERP System Team
 This is an automated message. Please do not reply to this email.
         """
 
+    def send_password_reset_email(self, recipient_email: str, recipient_name: str, reset_link: str) -> bool:
+        """Send password reset email to user"""
+        
+        # If credentials are not configured, log the email instead
+        if not self.smtp_user or not self.smtp_password:
+            subject = "Reset Your ERP System Password"
+            text_content = self._create_password_reset_text_template(
+                recipient_name=recipient_name or "there",
+                reset_link=reset_link
+            )
+            self._log_email_instead_of_sending(recipient_email, subject, text_content)
+            return True  # Return True for development/testing
+        
+        try:
+            if self.debug_mode:
+                logger.info(f"Attempting to send password reset email to {recipient_email}")
+                
+            # Create message
+            message = MIMEMultipart("alternative")
+            message["Subject"] = "Reset Your ERP System Password"
+            message["From"] = f"{self.from_name} <{self.from_email}>"
+            message["To"] = recipient_email
+
+            # Create the HTML content
+            html_content = self._create_password_reset_html_template(
+                recipient_name=recipient_name or "there",
+                reset_link=reset_link
+            )
+
+            # Create the plain text content
+            text_content = self._create_password_reset_text_template(
+                recipient_name=recipient_name or "there",
+                reset_link=reset_link
+            )
+
+            # Turn these into plain/html MIMEText objects
+            part1 = MIMEText(text_content, "plain")
+            part2 = MIMEText(html_content, "html")
+
+            # Add HTML/plain-text parts to MIMEMultipart message
+            message.attach(part1)
+            message.attach(part2)
+
+            # Send the email
+            if self.debug_mode:
+                logger.info(f"Connecting to SMTP server {self.smtp_server}:{self.smtp_port}")
+                
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                if self.debug_mode:
+                    server.set_debuglevel(1)
+                    
+                server.starttls(context=ssl.create_default_context())
+                
+                if self.debug_mode:
+                    logger.info(f"Logging in with user: {self.smtp_user}")
+                    
+                server.login(self.smtp_user, self.smtp_password)
+                server.send_message(message)
+
+            if self.debug_mode:
+                logger.info(f"Password reset email sent successfully to {recipient_email}")
+                
+            return True
+            
+        except Exception as e:
+            error_msg = f"Failed to send password reset email to {recipient_email}: {str(e)}"
+            logger.error(error_msg)
+            
+            # In development, also log the email content for debugging
+            if self.debug_mode:
+                subject = "Reset Your ERP System Password"
+                text_content = self._create_password_reset_text_template(
+                    recipient_name=recipient_name or "there",
+                    reset_link=reset_link
+                )
+                logger.info("Email content that failed to send:")
+                self._log_email_instead_of_sending(recipient_email, subject, text_content)
+                
+            return False
+
+    def send_password_confirmation_email(self, recipient_email: str, recipient_name: str) -> bool:
+        """Send password reset confirmation email to user"""
+        
+        # If credentials are not configured, log the email instead
+        if not self.smtp_user or not self.smtp_password:
+            subject = "Password Successfully Changed - ERP System"
+            text_content = self._create_password_confirmation_text_template(
+                recipient_name=recipient_name or "there"
+            )
+            self._log_email_instead_of_sending(recipient_email, subject, text_content)
+            return True  # Return True for development/testing
+        
+        try:
+            if self.debug_mode:
+                logger.info(f"Attempting to send password confirmation email to {recipient_email}")
+                
+            # Create message
+            message = MIMEMultipart("alternative")
+            message["Subject"] = "Password Successfully Changed - ERP System"
+            message["From"] = f"{self.from_name} <{self.from_email}>"
+            message["To"] = recipient_email
+
+            # Create the HTML content
+            html_content = self._create_password_confirmation_html_template(
+                recipient_name=recipient_name or "there"
+            )
+
+            # Create the plain text content
+            text_content = self._create_password_confirmation_text_template(
+                recipient_name=recipient_name or "there"
+            )
+
+            # Turn these into plain/html MIMEText objects
+            part1 = MIMEText(text_content, "plain")
+            part2 = MIMEText(html_content, "html")
+
+            # Add HTML/plain-text parts to MIMEMultipart message
+            message.attach(part1)
+            message.attach(part2)
+
+            # Send the email
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                if self.debug_mode:
+                    server.set_debuglevel(1)
+                    
+                server.starttls(context=ssl.create_default_context())
+                server.login(self.smtp_user, self.smtp_password)
+                server.send_message(message)
+
+            if self.debug_mode:
+                logger.info(f"Password confirmation email sent successfully to {recipient_email}")
+                
+            return True
+            
+        except Exception as e:
+            error_msg = f"Failed to send password confirmation email to {recipient_email}: {str(e)}"
+            logger.error(error_msg)
+            return False
+
+    def _create_password_reset_html_template(self, recipient_name: str, reset_link: str) -> str:
+        """Create HTML template for password reset email"""
+        
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Reset Your ERP System Password</title>
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    text-align: center;
+                    padding: 20px 0;
+                    border-bottom: 2px solid #f0f0f0;
+                    margin-bottom: 30px;
+                }}
+                .logo {{
+                    font-size: 24px;
+                    font-weight: bold;
+                    color: #2563eb;
+                }}
+                .content {{
+                    padding: 20px 0;
+                }}
+                .button {{
+                    display: inline-block;
+                    background-color: #dc2626;
+                    color: white;
+                    padding: 12px 30px;
+                    text-decoration: none;
+                    border-radius: 6px;
+                    font-weight: 500;
+                    margin: 20px 0;
+                }}
+                .button:hover {{
+                    background-color: #b91c1c;
+                }}
+                .warning-box {{
+                    background-color: #fef2f2;
+                    border: 1px solid #fecaca;
+                    border-radius: 6px;
+                    padding: 16px;
+                    margin: 20px 0;
+                    color: #991b1b;
+                }}
+                .footer {{
+                    text-align: center;
+                    font-size: 14px;
+                    color: #6b7280;
+                    border-top: 1px solid #f0f0f0;
+                    padding-top: 20px;
+                    margin-top: 40px;
+                }}
+                .security-note {{
+                    font-size: 12px;
+                    color: #6b7280;
+                    margin-top: 20px;
+                    background-color: #f8fafc;
+                    padding: 12px;
+                    border-radius: 4px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="logo">🏢 ERP System</div>
+            </div>
+            
+            <div class="content">
+                <h2>Reset Your Password</h2>
+                
+                <p>Hi {recipient_name},</p>
+                
+                <p>We received a request to reset your password for your ERP System account.</p>
+                
+                <div class="warning-box">
+                    <p><strong>⚠️ Security Notice:</strong> If you did not request a password reset, please ignore this email. Your password will remain unchanged.</p>
+                </div>
+                
+                <p>To reset your password, click the button below:</p>
+                
+                <div style="text-align: center;">
+                    <a href="{reset_link}" class="button">Reset Password</a>
+                </div>
+                
+                <p>Or copy and paste this link into your browser:</p>
+                <p style="word-break: break-all; color: #6b7280; font-size: 14px;">{reset_link}</p>
+                
+                <div class="security-note">
+                    <p><strong>Security Information:</strong></p>
+                    <ul>
+                        <li>This link will expire in 15 minutes</li>
+                        <li>You can only use this link once</li>
+                        <li>If the link has expired, please request a new password reset</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="footer">
+                <p>Best regards,<br>The ERP System Team</p>
+                <p style="font-size: 12px;">This is an automated message. Please do not reply to this email.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+    def _create_password_reset_text_template(self, recipient_name: str, reset_link: str) -> str:
+        """Create plain text template for password reset email"""
+        
+        return f"""
+ERP System - Reset Your Password
+
+Hi {recipient_name},
+
+We received a request to reset your password for your ERP System account.
+
+SECURITY NOTICE: If you did not request a password reset, please ignore this email. Your password will remain unchanged.
+
+To reset your password, please visit:
+{reset_link}
+
+Security Information:
+- This link will expire in 15 minutes
+- You can only use this link once
+- If the link has expired, please request a new password reset
+
+Best regards,
+The ERP System Team
+
+---
+This is an automated message. Please do not reply to this email.
+        """
+
+    def _create_password_confirmation_html_template(self, recipient_name: str) -> str:
+        """Create HTML template for password confirmation email"""
+        
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Password Successfully Changed</title>
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    text-align: center;
+                    padding: 20px 0;
+                    border-bottom: 2px solid #f0f0f0;
+                    margin-bottom: 30px;
+                }}
+                .logo {{
+                    font-size: 24px;
+                    font-weight: bold;
+                    color: #2563eb;
+                }}
+                .content {{
+                    padding: 20px 0;
+                }}
+                .success-box {{
+                    background-color: #f0fdf4;
+                    border: 1px solid #bbf7d0;
+                    border-radius: 6px;
+                    padding: 16px;
+                    margin: 20px 0;
+                    color: #166534;
+                }}
+                .footer {{
+                    text-align: center;
+                    font-size: 14px;
+                    color: #6b7280;
+                    border-top: 1px solid #f0f0f0;
+                    padding-top: 20px;
+                    margin-top: 40px;
+                }}
+                .security-note {{
+                    font-size: 12px;
+                    color: #6b7280;
+                    margin-top: 20px;
+                    background-color: #f8fafc;
+                    padding: 12px;
+                    border-radius: 4px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="logo">🏢 ERP System</div>
+            </div>
+            
+            <div class="content">
+                <h2>Password Successfully Changed</h2>
+                
+                <p>Hi {recipient_name},</p>
+                
+                <div class="success-box">
+                    <p><strong>✅ Success!</strong> Your password has been successfully changed.</p>
+                </div>
+                
+                <p>This is a confirmation that your password for your ERP System account has been updated.</p>
+                
+                <div class="security-note">
+                    <p><strong>Security Information:</strong></p>
+                    <ul>
+                        <li>All your previous sessions have been revoked for security</li>
+                        <li>You will need to log in again with your new password</li>
+                        <li>If you did not make this change, please contact your administrator immediately</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="footer">
+                <p>Best regards,<br>The ERP System Team</p>
+                <p style="font-size: 12px;">This is an automated message. Please do not reply to this email.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+    def _create_password_confirmation_text_template(self, recipient_name: str) -> str:
+        """Create plain text template for password confirmation email"""
+        
+        return f"""
+ERP System - Password Successfully Changed
+
+Hi {recipient_name},
+
+This is a confirmation that your password for your ERP System account has been successfully updated.
+
+Security Information:
+- All your previous sessions have been revoked for security
+- You will need to log in again with your new password
+- If you did not make this change, please contact your administrator immediately
+
+Best regards,
+The ERP System Team
+
+---
+This is an automated message. Please do not reply to this email.
+        """
+
     def send_test_email(self, recipient_email: str) -> bool:
         """Send a test email to verify email configuration"""
         try:

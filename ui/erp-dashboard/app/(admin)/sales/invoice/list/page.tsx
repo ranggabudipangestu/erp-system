@@ -81,7 +81,7 @@ export default function InvoiceList() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl">
+     <div className="mx-auto max-w-none px-2 sm:px-4 lg:px-6 py-8">
       {/* Breadcrumb */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-title-md2 font-semibold text-black dark:text-white">
