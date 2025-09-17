@@ -12,6 +12,10 @@ def register_routers(app: FastAPI) -> None:
     from app.modules.auth.router import router as auth_router
     app.include_router(auth_router, prefix="/auth", tags=["Auth"])
 
+    # Permissions module
+    from app.modules.permissions.router import router as permissions_router
+    app.include_router(permissions_router, prefix="/api/v1/permissions", tags=["Permissions"])
+
     # Master Data module
     from app.modules.master_data.router import router as master_data_router
     app.include_router(master_data_router, prefix="/master-data", tags=["MasterData"]) 

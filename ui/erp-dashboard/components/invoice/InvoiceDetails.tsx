@@ -1,4 +1,5 @@
 import React from 'react';
+import CalendarDatePicker from '@/components/ui/CalendarDatePicker';
 
 type InvoiceData = {
   invoiceNumber: string;
@@ -52,26 +53,23 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
           </div>
 
           <div>
-            <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-              Invoice Date
-            </label>
-            <input
-              type="date"
+            <CalendarDatePicker
+              label="Invoice Date"
               value={invoiceData.invoiceDate}
-              onChange={(e) => updateInvoiceData({ invoiceDate: e.target.value })}
-              className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-5 py-3 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+              onChange={(date) => updateInvoiceData({ invoiceDate: date })}
+              placeholder="Select invoice date"
+              required
             />
           </div>
 
           <div>
-            <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-              Due Date
-            </label>
-            <input
-              type="date"
+            <CalendarDatePicker
+              label="Due Date"
               value={invoiceData.dueDate}
-              onChange={(e) => updateInvoiceData({ dueDate: e.target.value })}
-              className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-5 py-3 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+              onChange={(date) => updateInvoiceData({ dueDate: date })}
+              placeholder="Select due date"
+              minDate={invoiceData.invoiceDate || new Date().toISOString().split('T')[0]}
+              required
             />
           </div>
         </div>

@@ -28,12 +28,16 @@ class Tenant(Base):
     )
     updated_at: Mapped[datetime | None] = mapped_column("updated_at", DateTime(timezone=True), nullable=True)
 
+    # Add subscription_plan_id column for the new permission system
+    subscription_plan_id: Mapped[UUID | None] = mapped_column("subscription_plan_id", PG_UUID(as_uuid=True), ForeignKey("subscription_plans.id"), nullable=True)
+
     # Relationships
     users: Mapped[list["UserTenant"]] = relationship("UserTenant", back_populates="tenant")
     roles: Mapped[list["Role"]] = relationship("Role", back_populates="tenant")
     invites: Mapped[list["Invite"]] = relationship("Invite", back_populates="tenant")
     auth_tokens: Mapped[list["AuthToken"]] = relationship("AuthToken", back_populates="tenant")
     audit_logs: Mapped[list["AuditLog"]] = relationship("AuditLog", back_populates="tenant")
+    # Note: SubscriptionPlan relationship will be handled by the permissions module
 
 
 class User(Base):
@@ -101,6 +105,7 @@ class Role(Base):
 
     # Relationships
     tenant: Mapped["Tenant | None"] = relationship("Tenant", back_populates="roles")
+    # Note: RolePermission relationship will be handled by the permissions module
 
 
 class Invite(Base):

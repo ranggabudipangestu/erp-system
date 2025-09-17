@@ -5,6 +5,9 @@ import InviteUserForm from '@/components/auth/InviteUserForm';
 import Alert from '@/components/ui/alert/Alert';
 import { authApi } from '@/app/lib/authApi';
 import { CreateInviteRequest } from '@/types/auth';
+import { DataTable, TableColumn } from '@/components/tables';
+import { UserInfo, StatusBadge, TagList, ActionDropdown, DateDisplay } from '@/components/tables/TableHelpers';
+import type { ActionItem } from '@/components/tables/TableHelpers';
 
 type UsersPageState = 'list' | 'invite';
 
@@ -14,6 +17,8 @@ export default function UsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Mock user data - in real app, fetch from API
   const users = [
@@ -32,7 +37,202 @@ export default function UsersPage() {
       roles: ['sales'],
       status: 'active',
       joinedAt: '2024-02-10'
+    },
+    {
+      id: '3',
+      name: 'Mike Johnson',
+      email: 'mike@example.com',
+      roles: ['marketing'],
+      status: 'active',
+      joinedAt: '2024-01-20'
+    },
+    {
+      id: '4',
+      name: 'Sarah Wilson',
+      email: 'sarah@example.com',
+      roles: ['hr', 'admin'],
+      status: 'inactive',
+      joinedAt: '2024-01-05'
+    },
+    {
+      id: '5',
+      name: 'David Brown',
+      email: 'david@example.com',
+      roles: ['finance'],
+      status: 'active',
+      joinedAt: '2024-02-01'
+    },
+    {
+      id: '6',
+      name: 'Lisa Garcia',
+      email: 'lisa@example.com',
+      roles: ['sales', 'marketing'],
+      status: 'active',
+      joinedAt: '2024-01-25'
+    },
+    {
+      id: '7',
+      name: 'Tom Anderson',
+      email: 'tom@example.com',
+      roles: ['tech'],
+      status: 'active',
+      joinedAt: '2024-02-15'
+    },
+    {
+      id: '8',
+      name: 'Emma Davis',
+      email: 'emma@example.com',
+      roles: ['support'],
+      status: 'active',
+      joinedAt: '2024-01-30'
+    },
+    {
+      id: '9',
+      name: 'Chris Miller',
+      email: 'chris@example.com',
+      roles: ['tech', 'admin'],
+      status: 'inactive',
+      joinedAt: '2024-01-10'
+    },
+    {
+      id: '10',
+      name: 'Anna Taylor',
+      email: 'anna@example.com',
+      roles: ['design'],
+      status: 'active',
+      joinedAt: '2024-02-05'
+    },
+    {
+      id: '11',
+      name: 'James White',
+      email: 'james@example.com',
+      roles: ['sales'],
+      status: 'active',
+      joinedAt: '2024-01-18'
+    },
+    {
+      id: '12',
+      name: 'Maria Rodriguez',
+      email: 'maria@example.com',
+      roles: ['hr'],
+      status: 'active',
+      joinedAt: '2024-02-12'
     }
+  ];
+
+  const handlePaginationChange = (page: number, newPageSize: number) => {
+    setCurrentPage(page);
+    if (newPageSize !== pageSize) {
+      setPageSize(newPageSize);
+    }
+  };
+
+  const handleEditUser = (user: any) => {
+    alert(`Edit user ${user.name}`);
+  };
+
+  const handleDisableUser = (user: any) => {
+    if (confirm(`Are you sure you want to disable ${user.name}?`)) {
+      alert(`User ${user.name} disabled`);
+    }
+  };
+
+  const columns: TableColumn[] = [
+    {
+      key: 'user',
+      title: 'User',
+      render: (_, record) => (
+        <UserInfo
+          name={record.name}
+          email={record.email}
+          size="md"
+        />
+      ),
+      className: 'min-w-[250px]'
+    },
+    {
+      key: 'roles',
+      title: 'Roles',
+      render: (_, record) => (
+        <TagList
+          tags={record.roles}
+          variant="primary"
+          maxDisplay={3}
+        />
+      ),
+    },
+    {
+      key: 'status',
+      title: 'Status',
+      render: (_, record) => (
+        <StatusBadge
+          status={record.status}
+          variant={record.status === 'active' ? 'success' : 'default'}
+        />
+      ),
+      sortable: true,
+    },
+    {
+      key: 'joinedAt',
+      title: 'Joined',
+      render: (_, record) => (
+        <DateDisplay date={record.joinedAt} format="medium" />
+      ),
+      sortable: true,
+    },
+    {
+      key: 'actions',
+      title: '',
+      render: (_, record) => {
+        const actions: ActionItem[] = [
+          {
+            label: 'View Profile',
+            onClick: () => alert(`View profile for ${record.name}`),
+            icon: (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            ),
+          },
+          {
+            label: 'Edit User',
+            onClick: () => handleEditUser(record),
+            icon: (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            ),
+          },
+          {
+            label: 'Reset Password',
+            onClick: () => alert(`Reset password for ${record.name}`),
+            icon: (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v-2H7v-2H4a1 1 0 01-1-1v-4c0-2.946 2.579-6.816 8-6.816 2.21 0 4.21.896 5.657 2.343z" />
+              </svg>
+            ),
+            divider: true,
+          },
+          {
+            label: record.status === 'active' ? 'Disable User' : 'Enable User',
+            onClick: () => handleDisableUser(record),
+            icon: record.status === 'active' ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ),
+            variant: record.status === 'active' ? 'danger' : 'success',
+          },
+        ];
+
+        return <ActionDropdown actions={actions} />;
+      },
+      className: 'w-[60px] text-center',
+    },
   ];
 
   const handleInviteUser = async (data: CreateInviteRequest): Promise<void> => {
@@ -200,99 +400,23 @@ export default function UsersPage() {
             <h3 className="text-lg font-medium text-gray-900">Team Members</h3>
           </div>
           
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Roles
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Joined
-                  </th>
-                  <th scope="col" className="relative px-6 py-3">
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="h-10 w-10 flex-shrink-0">
-                          <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                            <span className="text-sm font-medium text-gray-700">
-                              {user.name.split(' ').map(n => n[0]).join('')}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                          <div className="text-sm text-gray-500">{user.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-wrap gap-1">
-                        {user.roles.map((role) => (
-                          <span
-                            key={role}
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                          >
-                            {role}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        user.status === 'active' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {user.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(user.joinedAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-700 mr-4">Edit</button>
-                      <button className="text-red-600 hover:text-red-700">Disable</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="p-6">
+            <DataTable
+              columns={columns}
+              data={users}
+              emptyText="No team members found"
+              className="shadow-none border-0"
+              pagination={{
+                current: currentPage,
+                pageSize: pageSize,
+                onChange: handlePaginationChange,
+                showSizeChanger: true,
+                pageSizeOptions: [5, 10, 20, 50]
+              }}
+            />
           </div>
         </div>
 
-        {/* Empty state if no users */}
-        {users.length === 0 && (
-          <div className="bg-white shadow-sm rounded-lg p-8 text-center">
-            <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No team members yet</h3>
-            <p className="text-gray-500 mb-4">Get started by inviting your first team member.</p>
-            <button
-              onClick={() => setState('invite')}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Invite Your First User
-            </button>
-          </div>
-        )}
 
         {/* Toast Alerts */}
         {showToast && success && (
