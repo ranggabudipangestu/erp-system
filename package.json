@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "@svgr/webpack": "^8.1.0"
+    "@svgr/webpack": "^8.1.0",
+    "lucide-react": "^0.544.0"
   }
 }

@@ -284,12 +284,13 @@ class PermissionService:
 
     def get_user_permissions(self, user_id: UUID, tenant_id: UUID) -> Dict[str, Dict[str, bool]]:
         """Get effective permissions for a user based on their roles"""
-        
         # Get user's roles in this tenant
         user_tenant = self.db.query(UserTenant).filter(
             and_(UserTenant.user_id == user_id, UserTenant.tenant_id == tenant_id)
         ).first()
         
+        print("CHECK TENANT", user_tenant, tenant_id)
+
         if not user_tenant or not user_tenant.roles:
             return {}
         
@@ -304,6 +305,7 @@ class PermissionService:
                 Role.name.in_(user_tenant.roles)
             )
         )
+        print("CHECK HERE", permissions_query)
         
         # Aggregate permissions (OR operation - if any role grants permission, user has it)
         user_permissions = {}

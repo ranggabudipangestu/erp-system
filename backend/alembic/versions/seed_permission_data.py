@@ -1,18 +1,25 @@
 """Seed permission management data
 
 Revision ID: permission_seed_001
-Revises: permission_tables_001
+Revises: 3e2a1a4c9abc
 Create Date: 2024-09-13 10:01:00.000000
 
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 import uuid
+import sys
+from pathlib import Path
+
+VERSIONS_DIR = Path(__file__).resolve().parent
+if str(VERSIONS_DIR) not in sys.path:
+    sys.path.append(str(VERSIONS_DIR))
+
+import add_permission_management_tables  # type: ignore
 
 # revision identifiers, used by Alembic.
 revision = 'permission_seed_001'
-down_revision = 'permission_tables_001'
+down_revision = '3e2a1a4c9abc'
 branch_labels = None
 depends_on = None
 
@@ -20,6 +27,27 @@ depends_on = None
 def upgrade() -> None:
     # Get metadata and tables
     connection = op.get_bind()
+    inspector = sa.inspect(connection)
+
+    required_tables = {
+        'subscription_plans',
+        'modules',
+        'menu_items',
+        'plan_menu_items',
+        'role_permissions',
+        'tenants',
+    }
+    missing_tables = required_tables.difference(inspector.get_table_names())
+
+    if missing_tables:
+        add_permission_management_tables.upgrade()
+        inspector = sa.inspect(connection)
+        missing_tables = required_tables.difference(inspector.get_table_names())
+        if missing_tables:
+            raise RuntimeError(
+                "Missing permission tables after attempting to create them: "
+                + ", ".join(sorted(missing_tables))
+            )
     
     # Insert subscription plans
     plans_data = [

@@ -159,6 +159,7 @@ async def get_user_permissions(
     current_user=Depends(get_current_user),
     permission_service: PermissionService = Depends(get_permission_service)
 ):
+    print("CHECK user permission endpoint", current_user)
     """Get current user's effective permissions"""
     permissions = permission_service.get_user_permissions(
         current_user.user_id, 
