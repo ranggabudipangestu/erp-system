@@ -80,6 +80,29 @@ export interface AvailableMenusResponse {
   plan_name: string;
 }
 
+export interface NavigationMenuItem {
+  id: string;
+  code: string;
+  name: string;
+  route?: string;
+  icon?: string;
+  permission_key: string;
+  sort_order: number;
+}
+
+export interface NavigationModule {
+  id: string;
+  code: string;
+  name: string;
+  icon?: string;
+  sort_order: number;
+  items: NavigationMenuItem[];
+}
+
+export interface NavigationResponse {
+  modules: NavigationModule[];
+}
+
 // Form Types
 export interface RoleCreateData {
   name: string;

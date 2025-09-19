@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
-import menuConfig from '@/data/menuConfig.json';
+import { useState, useEffect, useCallback } from 'react';
+import { permissionService } from '@/lib/api/permissions';
+import { AuthService } from '@/lib/auth';
+import { NavigationModule } from '@/types/permissions';
 
 export interface MenuItem {
   id: string;
@@ -16,40 +18,76 @@ export interface MenuData {
   otherMenu: MenuItem[];
 }
 
+const ICON_MAP: Record<string, string> = {
+  database: 'TableIcon',
+  wallet: 'PieChartIcon',
+  boxes: 'BoxCubeIcon',
+  'shopping-cart': 'DocsIcon',
+  'trending-up': 'GridIcon',
+  factory: 'BoxCubeIcon',
+  shield: 'UserCircleIcon',
+  package: 'BoxCubeIcon',
+  'bar-chart': 'PieChartIcon',
+  'dollar-sign': 'PieChartIcon',
+};
+
+const resolveIcon = (icon?: string): string | undefined => {
+  if (!icon) return undefined;
+  const normalized = icon.toLowerCase();
+  return ICON_MAP[normalized] || 'GridIcon';
+};
+
+const transformNavigation = (navModules: NavigationModule[]): MenuData => {
+  const mainMenu: MenuItem[] = navModules.map((module) => ({
+    id: module.code,
+    name: module.name,
+    icon: resolveIcon(module.icon),
+    children: module.items
+      .filter((item) => Boolean(item.route))
+      .map((item) => ({
+        id: item.code,
+        name: item.name,
+        path: item.route!,
+      })),
+  })).filter((module) => module.children && module.children.length > 0);
+
+  return {
+    mainMenu,
+    otherMenu: [],
+  };
+};
+
 export const useMenuData = () => {
   const [menuData, setMenuData] = useState<MenuData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadMenuData = async () => {
-      try {
-        setLoading(true);
-        // Simulate API call delay - remove this in production
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // In the future, this could be an API call:
-        // const response = await fetch('/api/menu-config');
-        // const data = await response.json();
-        
-        setMenuData(menuConfig as MenuData);
+  const loadMenuData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const tokens = AuthService.getTokens();
+      if (!tokens) {
+        setMenuData({ mainMenu: [], otherMenu: [] });
         setError(null);
-      } catch (err) {
-        setError('Failed to load menu configuration');
-        console.error('Error loading menu data:', err);
-      } finally {
-        setLoading(false);
+        return;
       }
-    };
-
-    loadMenuData();
+      const response = await permissionService.getNavigation();
+      setMenuData(transformNavigation(response.modules));
+      setError(null);
+    } catch (err) {
+      setError('Failed to load menu configuration');
+      console.error('Error loading menu data:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    loadMenuData();
+  }, [loadMenuData]);
+
   const refreshMenuData = () => {
-    setLoading(true);
-    setError(null);
-    // Re-trigger the effect
-    setMenuData(null);
+    loadMenuData();
   };
 
   return {

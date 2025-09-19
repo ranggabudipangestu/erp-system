@@ -16,6 +16,7 @@ from .repository import (
     AuthTokenRepository,
     AuditLogRepository
 )
+from app.modules.permissions.menu_definitions import ALL_MENU_PERMISSION_KEYS
 from .auth_service import AuthService
 from .models import Tenant, User, UserTenant, Role, Invite, AuthToken, AuditLog
 from .schemas import (
@@ -128,28 +129,32 @@ class TenantProvisioningService:
 
     def create_default_roles(self, tenant_id: UUID) -> List[Role]:
         """Create default roles for a new tenant based on RBAC matrix"""
+        base_admin_permissions = {
+            "tenant.manage_settings",
+            "users.invite_user",
+            "users.deactivate_user",
+            "roles.create_role",
+            "finance.post_journal",
+            "sales.create_order",
+            "sales.sync_marketplace",
+            "inventory.stock_in_out",
+            "inventory.transfer_stock",
+            "manufacturing.create_bom",
+            "manufacturing.create_wo",
+        }
+
+        full_permissions = sorted(set(ALL_MENU_PERMISSION_KEYS).union(base_admin_permissions))
+
         default_roles = [
             {
                 "name": "owner",
                 "description": "Tenant owner with full access",
-                "permissions": [
-                    "tenant.manage_settings", "users.invite_user", "users.deactivate_user",
-                    "roles.create_role", "finance.view_reports", "finance.post_journal",
-                    "sales.create_order", "sales.sync_marketplace", "inventory.stock_in_out",
-                    "inventory.transfer_stock", "manufacturing.create_bom", "manufacturing.create_wo",
-                    # Product permissions
-                    "products.read", "products.create", "products.update", "products.delete"
-                ]
+                "permissions": full_permissions,
             },
             {
                 "name": "admin", 
                 "description": "Tenant administrator",
-                "permissions": [
-                    "tenant.manage_settings", "users.invite_user", "users.deactivate_user",
-                    "roles.create_role", "finance.view_reports", "sales.sync_marketplace",
-                    # Product permissions (admin)
-                    "products.read", "products.create", "products.update", "products.delete"
-                ]
+                "permissions": full_permissions,
             },
             {
                 "name": "finance",
@@ -228,7 +233,7 @@ class SignupService:
         1. Validate input and check for conflicts
         2. Create tenant 
         3. Create owner user
-        4. Link user to tenant with owner role
+        4. Link user to tenant with admin role
         5. Provision default roles
         6. Setup tenant settings
         7. Create audit log
@@ -286,7 +291,7 @@ class SignupService:
             id=uuid4(),
             user_id=user_id,
             tenant_id=tenant_id,
-            roles=["owner"],  # Owner role
+            roles=["admin"],  # Primary user starts as admin
             is_primary_tenant=True,  # First tenant is primary
             joined_at=datetime.now(timezone.utc)
         )
@@ -680,5 +685,3 @@ class InvitationService:
                 roles=invitation.roles
             )
         )
-
-

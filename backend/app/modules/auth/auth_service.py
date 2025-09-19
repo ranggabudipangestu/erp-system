@@ -68,30 +68,48 @@ class AuthService:
                 self._record_failed_attempt(email, "user_not_found", ip_address)
                 self.rate_limiter.record_attempt(rate_limit_key)
                 return None
-            
+
             # Get user's primary tenant
             user_tenant = self.user_repo.get_primary_tenant(user.id)
             if not user_tenant:
-                self._record_failed_attempt(email, "no_tenant", ip_address, user.id)
+                self._record_failed_attempt(email, "no_tenant", ip_address, user_id=user.id)
                 self.rate_limiter.record_attempt(rate_limit_key)
                 return None
-            
+
             # Check tenant domain if feature flag is enabled
             if settings.REQUIRE_TENANT_DOMAIN and tenant_domain:
                 if not user_tenant.tenant or user_tenant.tenant.domain != tenant_domain:
-                    self._record_failed_attempt(email, "invalid_tenant_domain", ip_address, user.id)
+                    self._record_failed_attempt(
+                        email,
+                        "invalid_tenant_domain",
+                        ip_address,
+                        tenant_id=user_tenant.tenant_id,
+                        user_id=user.id,
+                    )
                     self.rate_limiter.record_attempt(rate_limit_key)
                     return None
-            
+
             # Validate password
             if not self.verify_password(password, user.password_hash):
-                self._record_failed_attempt(email, "invalid_password", ip_address, user.id)
+                self._record_failed_attempt(
+                    email,
+                    "invalid_password",
+                    ip_address,
+                    tenant_id=user_tenant.tenant_id,
+                    user_id=user.id,
+                )
                 self.rate_limiter.record_attempt(rate_limit_key)
                 return None
-            
+
             # Check if user is active
             if user.status != "active":
-                self._record_failed_attempt(email, "user_inactive", ip_address, user.id)
+                self._record_failed_attempt(
+                    email,
+                    "user_inactive",
+                    ip_address,
+                    tenant_id=user_tenant.tenant_id,
+                    user_id=user.id,
+                )
                 self.rate_limiter.record_attempt(rate_limit_key)
                 return None
             
@@ -128,21 +146,33 @@ class AuthService:
             
         except Exception as e:
             # Log unexpected error
-            self._record_failed_attempt(email, f"system_error: {str(e)}", ip_address)
+            tenant_id = user_tenant.tenant_id if 'user_tenant' in locals() and user_tenant else None
+            recorded_user_id = user.id if 'user' in locals() and user else None
+            self._record_failed_attempt(
+                email,
+                f"system_error: {str(e)}",
+                ip_address,
+                tenant_id=tenant_id,
+                user_id=recorded_user_id,
+            )
             self.rate_limiter.record_attempt(rate_limit_key)
             raise e
-    
+
     def _record_failed_attempt(
-        self, 
-        email: str, 
-        reason: str, 
+        self,
+        email: str,
+        reason: str,
         ip_address: Optional[str] = None,
-        user_id: Optional[UUID] = None
+        tenant_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
     ) -> None:
         """Record failed login attempt in audit log"""
+        if tenant_id is None:
+            # Database schema requires tenant_id; skip logging when we cannot resolve it.
+            return
         audit_log = AuditLog(
             id=uuid4(),
-            tenant_id=None,  # No tenant context for failed logins
+            tenant_id=tenant_id,
             user_id=user_id,
             action="login_failed",
             resource="auth",
@@ -289,15 +319,38 @@ class AuthService:
     def revoke_all_tokens(self, user_id: UUID, tenant_id: Optional[UUID] = None) -> int:
         """
         Revoke all tokens for a user (optionally scoped to tenant)
-        
+
         Args:
             user_id: User ID
             tenant_id: Optional tenant ID to scope revocation
-            
+
         Returns:
             Number of tokens revoked
         """
         return self.auth_token_repo.revoke_all_user_tokens(user_id, tenant_id)
+
+    def logout(self, user_id: UUID, tenant_id: UUID, ip_address: Optional[str] = None) -> int:
+        """Revoke active sessions for the user and record an audit trail."""
+
+        revoked_sessions = self.revoke_all_tokens(user_id, tenant_id)
+
+        audit_log = AuditLog(
+            id=uuid4(),
+            tenant_id=tenant_id,
+            user_id=user_id,
+            action="logout",
+            resource="auth",
+            resource_id=str(user_id),
+            payload={
+                "revoked_sessions": revoked_sessions,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            ip_address=ip_address,
+            created_at=datetime.now(timezone.utc),
+        )
+        self.audit_repo.create(audit_log)
+
+        return revoked_sessions
     
     @staticmethod
     def hash_password(password: str) -> str:

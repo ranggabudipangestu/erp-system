@@ -5,14 +5,21 @@ from sqlalchemy import and_, or_
 from fastapi import HTTPException, status
 
 from app.modules.permissions.models import (
-    Module, MenuItem, RolePermission, 
+    Module, MenuItem, RolePermission,
     SubscriptionPlan, PlanMenuItem
 )
 from app.modules.auth.models import Role, Tenant, UserTenant
 from app.modules.permissions.schemas import (
-    RoleCreate, RoleUpdate, RoleWithPermissions,
-    AvailableMenusResponse, ModuleSchema, MenuItemWithModule,
-    RoleSchema, SubscriptionPlanSchema
+    RoleCreate,
+    RoleUpdate,
+    RoleWithPermissions,
+    AvailableMenusResponse,
+    ModuleSchema,
+    MenuItemWithModule,
+    RoleSchema,
+    SubscriptionPlanSchema,
+    NavigationModule,
+    NavigationMenuItem,
 )
 
 
@@ -84,28 +91,150 @@ class PermissionService:
             plan_name=subscription_plan.name
         )
 
+    def get_navigation_for_user(self, tenant_id: UUID, allowed_permissions: set[str]) -> List[NavigationModule]:
+        """Build navigation tree filtered by the user's permissions"""
+
+        available = self.get_available_menus_for_tenant(tenant_id)
+
+        allowed_items = [
+            item for item in available.menu_items if item.permission_key in allowed_permissions
+        ]
+
+        items_by_module: Dict[UUID, List[MenuItemWithModule]] = {}
+        for item in allowed_items:
+            items_by_module.setdefault(item.module_id, []).append(item)
+
+        navigation: List[NavigationModule] = []
+        for module in sorted(available.modules, key=lambda m: m.sort_order):
+            module_items = items_by_module.get(module.id)
+            if not module_items:
+                continue
+
+            sorted_items = sorted(module_items, key=lambda i: i.sort_order)
+            navigation.append(
+                NavigationModule(
+                    id=module.id,
+                    code=module.code,
+                    name=module.name,
+                    icon=module.icon,
+                    sort_order=module.sort_order,
+                    items=[
+                        NavigationMenuItem(
+                            id=item.id,
+                            code=item.code,
+                            name=item.name,
+                            route=item.route,
+                            icon=item.icon,
+                            permission_key=item.permission_key,
+                            sort_order=item.sort_order,
+                        )
+                        for item in sorted_items
+                        if item.route  # only include navigable entries
+                    ],
+                )
+            )
+
+        # remove modules that lost all routable items after filtering
+        navigation = [module for module in navigation if module.items]
+        return navigation
+
     def get_roles_for_tenant(self, tenant_id: UUID) -> List[RoleWithPermissions]:
         """Get all roles for a tenant with their permissions"""
-        
-        roles = self.db.query(Role).options(
-            selectinload(Role.role_permissions).selectinload(RolePermission.menu_item).selectinload(MenuItem.module)
-        ).filter(Role.tenant_id == tenant_id).order_by(Role.name).all()
-        
-        return [RoleWithPermissions.model_validate(role) for role in roles]
+
+        roles = self.db.query(Role).filter(Role.tenant_id == tenant_id).order_by(Role.name).all()
+
+        # Convert auth Role model to RoleWithPermissions schema
+        result = []
+        for role in roles:
+            # Convert string permissions to RolePermissionWithMenuItem objects
+            role_permissions = []
+            for permission_key in role.permissions:
+                # Find the menu item for this permission
+                menu_item = self.db.query(MenuItem).filter(
+                    MenuItem.permission_key == permission_key
+                ).first()
+
+                if menu_item:
+                    # Create a mock RolePermissionWithMenuItem object
+                    role_perm_data = {
+                        "id": str(role.id),  # Use role id as a placeholder
+                        "role_id": role.id,
+                        "menu_item_id": menu_item.id,
+                        "can_view": True,  # Default permissions
+                        "can_create": False,
+                        "can_edit": False,
+                        "can_delete": False,
+                        "can_export": False,
+                        "created_at": role.created_at,
+                        "updated_at": role.updated_at,
+                        "menu_item": menu_item
+                    }
+                    role_permissions.append(role_perm_data)
+
+            # Create RoleWithPermissions object
+            role_data = {
+                "id": role.id,
+                "tenant_id": role.tenant_id,
+                "name": role.name,
+                "description": role.description,
+                "is_system_role": role.is_system_role,
+                "created_at": role.created_at,
+                "updated_at": role.updated_at,
+                "permissions": role_permissions
+            }
+
+            result.append(RoleWithPermissions.model_validate(role_data))
+
+        return result
 
     def get_role_by_id(self, role_id: UUID, tenant_id: UUID) -> Optional[RoleWithPermissions]:
         """Get a specific role with permissions"""
-        
-        role = self.db.query(Role).options(
-            selectinload(Role.role_permissions).selectinload(RolePermission.menu_item).selectinload(MenuItem.module)
-        ).filter(
+
+        role = self.db.query(Role).filter(
             and_(Role.id == role_id, Role.tenant_id == tenant_id)
         ).first()
-        
+
         if not role:
             return None
-            
-        return RoleWithPermissions.model_validate(role)
+
+        # Convert string permissions to RolePermissionWithMenuItem objects
+        role_permissions = []
+        for permission_key in role.permissions:
+            # Find the menu item for this permission
+            menu_item = self.db.query(MenuItem).filter(
+                MenuItem.permission_key == permission_key
+            ).first()
+
+            if menu_item:
+                # Create a mock RolePermissionWithMenuItem object
+                role_perm_data = {
+                    "id": str(role.id),  # Use role id as a placeholder
+                    "role_id": role.id,
+                    "menu_item_id": menu_item.id,
+                    "can_view": True,  # Default permissions
+                    "can_create": False,
+                    "can_edit": False,
+                    "can_delete": False,
+                    "can_export": False,
+                    "created_at": role.created_at,
+                    "updated_at": role.updated_at,
+                    "menu_item": menu_item
+                }
+                role_permissions.append(role_perm_data)
+
+        # Create RoleWithPermissions object
+        role_data = {
+            "id": role.id,
+            "tenant_id": role.tenant_id,
+            "name": role.name,
+            "description": role.description,
+            "is_system_role": role.is_system_role,
+            "created_at": role.created_at,
+            "updated_at": role.updated_at,
+            "permissions": role_permissions
+        }
+
+        return RoleWithPermissions.model_validate(role_data)
 
     def create_role(self, tenant_id: UUID, role_data: RoleCreate, created_by: UUID) -> RoleWithPermissions:
         """Create a new role with permissions"""
@@ -288,8 +417,6 @@ class PermissionService:
         user_tenant = self.db.query(UserTenant).filter(
             and_(UserTenant.user_id == user_id, UserTenant.tenant_id == tenant_id)
         ).first()
-        
-        print("CHECK TENANT", user_tenant, tenant_id)
 
         if not user_tenant or not user_tenant.roles:
             return {}

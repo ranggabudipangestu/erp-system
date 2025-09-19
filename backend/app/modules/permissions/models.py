@@ -130,7 +130,6 @@ try:
     
     # Update the Role model to work with the new permission system
     BaseRole.role_permissions = relationship("RolePermission", back_populates="role", cascade="all, delete-orphan")
-    BaseRole.is_system = mapped_column("is_system_role", Boolean, nullable=False, default=False)
 
     # Update the Tenant model to include subscription plan if it hasn't already been mapped
     if not hasattr(BaseTenant, "subscription_plan_id"):

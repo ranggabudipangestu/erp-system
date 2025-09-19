@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Set, Tuple
 from uuid import UUID, uuid4
 import jwt
 import secrets
@@ -7,7 +7,7 @@ import hashlib
 
 from app.core.config import get_settings
 from .models import User, AuthToken
-from .repository import AuthTokenRepository
+from .repository import AuthTokenRepository, UserTenantRepository, RoleRepository
 
 
 settings = get_settings()
@@ -22,9 +22,43 @@ class TokenService:
         self.algorithm = "HS256"
         self.access_token_expire_minutes = 30
         self.refresh_token_expire_days = 30
-    
-    def generate_access_token(self, user: User, tenant_id: UUID) -> str:
+        self.user_tenant_repo = UserTenantRepository(auth_token_repo.session)
+        self.role_repo = RoleRepository(auth_token_repo.session)
+
+    def _resolve_roles_and_permissions(self, user_id: UUID, tenant_id: UUID) -> Tuple[List[str], Set[str]]:
+        """Fetch roles and aggregate permissions for the user in the tenant."""
+
+        user_tenant = self.user_tenant_repo.get_by_user_and_tenant(user_id, tenant_id)
+        roles: List[str] = list(user_tenant.roles or []) if user_tenant else []
+
+        permissions: Set[str] = set()
+        for role_name in roles:
+            role = self.role_repo.get_by_name_and_tenant(role_name, tenant_id)
+            if role and role.permissions:
+                permissions.update(role.permissions)
+
+        return roles, permissions
+
+    def generate_access_token(
+        self,
+        user: User,
+        tenant_id: UUID,
+        *,
+        roles: Optional[List[str]] = None,
+        permissions: Optional[Set[str]] = None,
+    ) -> str:
         """Generate JWT access token"""
+
+        token_roles = roles
+        token_permissions = permissions
+
+        if token_roles is None or token_permissions is None:
+            resolved_roles, resolved_permissions = self._resolve_roles_and_permissions(user.id, tenant_id)
+            if token_roles is None:
+                token_roles = resolved_roles
+            if token_permissions is None:
+                token_permissions = resolved_permissions
+
         token_data = {
             "sub": str(user.id),
             "email": user.email,
@@ -34,7 +68,12 @@ class TokenService:
             "iat": datetime.now(timezone.utc),
             "type": "access"
         }
-        
+
+        if token_roles:
+            token_data["roles"] = list(token_roles)
+        if token_permissions:
+            token_data["permissions"] = list(token_permissions)
+
         return jwt.encode(token_data, self.secret_key, algorithm=self.algorithm)
     
     def generate_refresh_token(self, user: User, tenant_id: UUID, ip_address: Optional[str] = None) -> str:

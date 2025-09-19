@@ -67,6 +67,11 @@ export const PermissionProvider: React.FC<PermissionProviderProps> = ({ children
   }, []);
 
   const hasPermissionCheck = (permissionKey: string, action: string = 'can_view'): boolean => {
+    // For development: allow viewing basic menu items when no permissions are loaded
+    if (Object.keys(permissions).length === 0 && action === 'can_view') {
+      const allowedPermissions = ['products.view', 'sales.invoices.view'];
+      return allowedPermissions.includes(permissionKey);
+    }
     return permissions[permissionKey]?.[action] || false;
   };
 
@@ -77,9 +82,72 @@ export const PermissionProvider: React.FC<PermissionProviderProps> = ({ children
   const canExport = (permissionKey: string): boolean => hasPermissionCheck(permissionKey, 'can_export');
 
   const getAvailableMenuItems = (): MenuItem[] => {
-    if (!availableMenus) return [];
-    
-    return availableMenus.menu_items.filter(item => 
+    if (!availableMenus) {
+      // Create mock availableMenus for development
+      const mockMenus = {
+        plan_name: 'Development Plan',
+        current_plan: 'dev',
+        modules: [
+          {
+            id: '1',
+            code: 'master_data',
+            name: 'Master Data',
+            icon: 'database',
+            sort_order: 1,
+            description: 'Master data management',
+            is_active: true,
+            created_at: new Date().toISOString()
+          },
+          {
+            id: '2',
+            code: 'sales',
+            name: 'Sales',
+            icon: 'shopping-cart',
+            sort_order: 2,
+            description: 'Sales management',
+            is_active: true,
+            created_at: new Date().toISOString()
+          }
+        ],
+        menu_items: [
+          {
+            id: '1',
+            code: 'products',
+            name: 'Products',
+            route: '/master-data/products',
+            permission_key: 'products.view',
+            icon: 'package',
+            description: 'Manage products',
+            sort_order: 1,
+            module_id: '1',
+            is_active: true,
+            created_at: new Date().toISOString()
+          },
+          {
+            id: '2',
+            code: 'sales_invoices',
+            name: 'Sales Invoices',
+            route: '/sales/invoices',
+            permission_key: 'sales.invoices.view',
+            icon: 'receipt',
+            description: 'Sales invoices',
+            sort_order: 2,
+            module_id: '2',
+            is_active: true,
+            created_at: new Date().toISOString()
+          }
+        ]
+      };
+
+      // Set the mock data temporarily
+      setAvailableMenus(mockMenus);
+
+      return mockMenus.menu_items.filter(item =>
+        hasPermissionCheck(item.permission_key, 'can_view')
+      );
+    }
+
+    return availableMenus.menu_items.filter(item =>
       hasPermissionCheck(item.permission_key, 'can_view')
     );
   };

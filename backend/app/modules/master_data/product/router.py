@@ -25,7 +25,7 @@ def get_service(session=Depends(get_session)) -> ProductService:
 
 @router.get("", response_model=List[ProductDto])
 def get_products(
-    principal: SecurityPrincipal = Depends(require_permissions(["products.read"])),
+    principal: SecurityPrincipal = Depends(require_permissions(["products.view"])),
     service: ProductService = Depends(get_service),
 ):
     return service.get_all()
@@ -34,7 +34,7 @@ def get_products(
 @router.get("/{id}", response_model=ProductDto)
 def get_product(
     id: UUID,
-    principal: SecurityPrincipal = Depends(require_permissions(["products.read"])),
+    principal: SecurityPrincipal = Depends(require_permissions(["products.view"])),
     service: ProductService = Depends(get_service),
 ):
     product = service.get_by_id(id)
@@ -46,7 +46,7 @@ def get_product(
 @router.get("/by-code/{code}", response_model=ProductDto)
 def get_product_by_code(
     code: str,
-    principal: SecurityPrincipal = Depends(require_permissions(["products.read"])),
+    principal: SecurityPrincipal = Depends(require_permissions(["products.view"])),
     service: ProductService = Depends(get_service),
 ):
     product = service.get_by_code(code)
@@ -58,7 +58,7 @@ def get_product_by_code(
 @router.get("/by-category/{category}", response_model=List[ProductDto])
 def get_products_by_category(
     category: UUID,
-    principal: SecurityPrincipal = Depends(require_permissions(["products.read"])),
+    principal: SecurityPrincipal = Depends(require_permissions(["products.view"])),
     service: ProductService = Depends(get_service),
 ):
     return service.get_by_category(category)
@@ -67,7 +67,7 @@ def get_products_by_category(
 @router.get("/search", response_model=List[ProductDto])
 def search_products(
     searchTerm: str = Query(..., description="Search term is required."),
-    principal: SecurityPrincipal = Depends(require_permissions(["products.read"])),
+    principal: SecurityPrincipal = Depends(require_permissions(["products.view"])),
     service: ProductService = Depends(get_service),
 ):
     if not searchTerm or not searchTerm.strip():

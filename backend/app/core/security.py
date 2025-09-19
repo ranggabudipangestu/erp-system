@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import List, Set, Optional, TypedDict
+from dataclasses import dataclass
+from typing import List, Set, Optional
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
@@ -15,7 +16,8 @@ from app.modules.auth.repository import (
 from app.modules.auth.token_service import TokenService
 
 
-class SecurityPrincipal(TypedDict):
+@dataclass
+class SecurityPrincipal:
     user_id: UUID
     tenant_id: UUID
     email: str
@@ -94,7 +96,7 @@ def require_permissions(required: List[str]):
             return principal
 
         # Require all listed permissions
-        missing = [p for p in required if p not in principal["permissions"]]
+        missing = [p for p in required if p not in principal.permissions]
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

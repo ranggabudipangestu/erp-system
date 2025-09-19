@@ -15,6 +15,7 @@ import MonthlySalesChart from "@/components/ecommerce/MonthlySalesChart";
 import StatisticsChart from "@/components/ecommerce/StatisticsChart";
 import RecentOrders from "@/components/ecommerce/RecentOrders";
 import DemographicCard from "@/components/ecommerce/DemographicCard";
+import DynamicSidebar from '@/components/layout/DynamicSidebar';
 
 export default function HomePage() {
   const router = useRouter();
@@ -61,6 +62,7 @@ export default function HomePage() {
     <div className="min-h-screen xl:flex">
       {/* Sidebar and Backdrop */}
       <AppSidebar />
+      {/* <DynamicSidebar /> */}
       <Backdrop />
       {/* Main Content Area */}
       <div

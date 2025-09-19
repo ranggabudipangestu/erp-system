@@ -1,6 +1,7 @@
 import { AuthService } from '@/lib/auth';
 import {
   AvailableMenusResponse,
+  NavigationResponse,
   Role,
   RoleCreateData,
   RoleUpdateData,
@@ -41,6 +42,15 @@ class PermissionService {
     });
     
     return this.handleResponse<AvailableMenusResponse>(response);
+  }
+
+  async getNavigation(): Promise<NavigationResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/permissions/navigation`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    });
+
+    return this.handleResponse<NavigationResponse>(response);
   }
 
   /**

@@ -125,6 +125,29 @@ class UserPermissionsResponse(BaseModel):
     permissions: Dict[str, Dict[str, bool]] = {}
 
 
+class NavigationMenuItem(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    route: Optional[str] = None
+    icon: Optional[str] = None
+    permission_key: str
+    sort_order: int = 0
+
+
+class NavigationModule(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    icon: Optional[str] = None
+    sort_order: int = 0
+    items: List[NavigationMenuItem] = []
+
+
+class NavigationResponse(BaseModel):
+    modules: List[NavigationModule]
+
+
 # Request/Response for bulk operations
 class BulkRolePermissionUpdate(BaseModel):
     role_id: UUID

@@ -1,10 +1,9 @@
 from typing import List
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.security import HTTPBearer
 
 from app.core.db import session_scope
+from app.core.security import SecurityPrincipal, get_current_principal
 from .repository import (
     TenantRepository, 
     UserRepository, 
@@ -44,7 +43,6 @@ from .schemas import (
 
 
 router = APIRouter()
-security = HTTPBearer(auto_error=False)
 
 
 def get_session():
@@ -208,14 +206,33 @@ def login(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.post("/logout")
+def logout(
+    request: Request,
+    principal: SecurityPrincipal = Depends(get_current_principal),
+    service: AuthService = Depends(get_auth_service),
+):
+    """Revoke all active sessions for the authenticated user"""
+    try:
+        client_ip = get_client_ip(request)
+        revoked_sessions = service.logout(principal.user_id, principal.tenant_id, client_ip)
+        return {
+            "message": "Logged out successfully",
+            "revoked_sessions": revoked_sessions,
+        }
+    except Exception as ex:
+        print(f"Failed to logout user {principal.user_id}: {ex}")
+        raise HTTPException(status_code=500, detail="Logout failed")
+
+
 # Tenant management endpoints  
 @router.get("/tenants/current", response_model=TenantDto)
 def get_current_tenant(
-    tenant_id: UUID,  # This should come from JWT token in real implementation
+    principal: SecurityPrincipal = Depends(get_current_principal),
     service: TenantService = Depends(get_tenant_service)
 ):
     """Get current tenant information"""
-    tenant = service.get_current_tenant(tenant_id)
+    tenant = service.get_current_tenant(principal.tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return tenant
@@ -224,13 +241,12 @@ def get_current_tenant(
 @router.patch("/tenants/current", response_model=TenantDto)
 def update_current_tenant(
     payload: UpdateTenantDto,
-    tenant_id: UUID,  # This should come from JWT token in real implementation  
-    user_id: UUID,    # This should come from JWT token in real implementation
+    principal: SecurityPrincipal = Depends(get_current_principal),
     service: TenantService = Depends(get_tenant_service)
 ):
     """Update current tenant settings"""
     try:
-        tenant = service.update_tenant(tenant_id, payload, user_id)
+        tenant = service.update_tenant(principal.tenant_id, payload, principal.user_id)
         return tenant
     except ValueError as ex:
         raise HTTPException(status_code=404, detail=str(ex))
@@ -239,20 +255,20 @@ def update_current_tenant(
 # User management endpoints
 @router.get("/users/me/tenants", response_model=List[UserTenantDto])
 def get_user_tenants(
-    user_id: UUID,  # This should come from JWT token in real implementation
+    principal: SecurityPrincipal = Depends(get_current_principal),
     service: UserService = Depends(get_user_service)
 ):
     """Get all tenants for current user"""
-    return service.get_user_tenants(user_id)
+    return service.get_user_tenants(principal.user_id)
 
 
 @router.get("/users/me/tenant/primary", response_model=UserTenantDto)
 def get_primary_tenant(
-    user_id: UUID,  # This should come from JWT token in real implementation
+    principal: SecurityPrincipal = Depends(get_current_principal),
     service: UserService = Depends(get_user_service)
 ):
     """Get primary tenant for current user"""
-    tenant = service.get_primary_tenant(user_id)
+    tenant = service.get_primary_tenant(principal.user_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="No primary tenant found")
     return tenant
@@ -263,8 +279,7 @@ def get_primary_tenant(
 def create_invitation(
     payload: CreateInviteDto,
     request: Request,
-    tenant_id: UUID,  # This should come from JWT token in real implementation
-    inviter_user_id: UUID,  # This should come from JWT token in real implementation
+    principal: SecurityPrincipal = Depends(get_current_principal),
     service: InvitationService = Depends(get_invitation_service)
 ):
     """
@@ -280,7 +295,7 @@ def create_invitation(
     """
     try:
         client_ip = get_client_ip(request)
-        result = service.create_invitation(payload, tenant_id, inviter_user_id, client_ip)
+        result = service.create_invitation(payload, principal.tenant_id, principal.user_id, client_ip)
         return result
     except ValueError as ex:
         raise HTTPException(status_code=400, detail=str(ex))
@@ -293,6 +308,7 @@ def create_invitation(
 @router.get("/invitations/{token}", response_model=InviteDto)
 def validate_invitation(
     token: str,
+    principal: SecurityPrincipal = Depends(get_current_principal),
     service: InvitationService = Depends(get_invitation_service)
 ):
     """
@@ -304,6 +320,7 @@ def validate_invitation(
     3. Invitation status is pending
     """
     try:
+        _ = principal  # Ensure JWT validation executes even if not used directly
         result = service.validate_invitation(token)
         return result
     except ValueError as ex:
@@ -350,6 +367,7 @@ def accept_invitation(
 def forgot_password(
     payload: ForgotPasswordRequestDto,
     request: Request,
+    principal: SecurityPrincipal = Depends(get_current_principal),
     service = Depends(get_password_service)
 ):
     """
@@ -366,6 +384,7 @@ def forgot_password(
     """
     try:
         client_ip = get_client_ip(request)
+        _ = principal  # Authenticated context enforced
         success = service.initiate_password_reset(payload.email, client_ip)
         
         return ForgotPasswordResponseDto(
@@ -385,6 +404,7 @@ def forgot_password(
 @router.get("/password/reset/{token}", response_model=ValidateResetTokenResponseDto)
 def validate_reset_token(
     token: str,
+    principal: SecurityPrincipal = Depends(get_current_principal),
     service = Depends(get_password_service)
 ):
     """
@@ -396,6 +416,7 @@ def validate_reset_token(
     3. Associated user still exists
     """
     try:
+        _ = principal
         result = service.validate_reset_token(token)
         return ValidateResetTokenResponseDto(**result)
         
@@ -411,6 +432,7 @@ def validate_reset_token(
 def reset_password(
     payload: ResetPasswordRequestDto,
     request: Request,
+    principal: SecurityPrincipal = Depends(get_current_principal),
     service = Depends(get_password_service)
 ):
     """
@@ -427,6 +449,7 @@ def reset_password(
     """
     try:
         client_ip = get_client_ip(request)
+        _ = principal
         result = service.reset_password(payload.token, payload.new_password, client_ip)
         return ResetPasswordResponseDto(**result)
         
@@ -442,7 +465,7 @@ def reset_password(
 def change_password(
     payload: ChangePasswordRequestDto,
     request: Request,
-    user_id: UUID,  # This should come from JWT token in real implementation
+    principal: SecurityPrincipal = Depends(get_current_principal),
     service = Depends(get_password_service)
 ):
     """
@@ -460,7 +483,7 @@ def change_password(
     try:
         client_ip = get_client_ip(request)
         result = service.change_password(
-            user_id=user_id,
+            user_id=principal.user_id,
             current_password=payload.current_password,
             new_password=payload.new_password,
             ip_address=client_ip
@@ -477,9 +500,13 @@ def change_password(
 
 # Test email endpoint (development only)
 @router.post("/test-email")
-def test_email(recipient_email: str = "test@example.com"):
+def test_email(
+    recipient_email: str = "test@example.com",
+    principal: SecurityPrincipal = Depends(get_current_principal),
+):
     """Test email configuration by sending a test email"""
     try:
+        _ = principal
         from .email_service import EmailService
         email_service = EmailService()
         
@@ -500,8 +527,9 @@ def test_email(recipient_email: str = "test@example.com"):
 
 # Health check endpoint
 @router.get("/health")
-def health_check():
+def health_check(principal: SecurityPrincipal = Depends(get_current_principal)):
     """Health check endpoint for auth service"""
+    _ = principal
     return {"status": "healthy", "service": "auth"}
 
 
