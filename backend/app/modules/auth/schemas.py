@@ -100,6 +100,18 @@ class UserTenantDto(BaseModel):
     tenant: Optional[TenantDto] = None
 
 
+class TenantUserDto(BaseModel):
+    membership_id: UUID
+    user_id: UUID
+    email: EmailStr
+    name: str
+    status: str
+    roles: List[str]
+    is_primary: bool
+    joined_at: Optional[datetime] = None
+    last_active_at: Optional[datetime] = None
+
+
 class AssignRolesDto(BaseModel):
     user_id: UUID
     roles: List[str] = Field(..., min_items=1)

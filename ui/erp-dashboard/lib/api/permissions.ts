@@ -135,8 +135,9 @@ class PermissionService {
       method: 'GET',
       headers: this.getAuthHeaders(),
     });
-    
-    return this.handleResponse<Record<string, Record<string, boolean>>>(response);
+
+    const payload = await this.handleResponse<{ permissions: Record<string, Record<string, boolean>> }>(response);
+    return payload.permissions ?? {};
   }
 }
 

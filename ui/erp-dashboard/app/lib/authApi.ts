@@ -1,4 +1,5 @@
-import { SignupRequest, SignupResponse, LoginRequest, LoginResponse, CreateInviteRequest, Invite, AcceptInviteRequest } from '@/types/auth';
+import { SignupRequest, SignupResponse, LoginRequest, LoginResponse, CreateInviteRequest, Invite, AcceptInviteRequest, UserTenant, TenantUser } from '@/types/auth';
+import { AuthService } from '@/lib/auth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -14,12 +15,30 @@ class AuthApiError extends Error {
 }
 
 class AuthApi {
+  private getAuthHeaders(): Record<string, string> {
+    try {
+      const tokens = AuthService.getTokens();
+      if (tokens?.access_token) {
+        return {
+          Authorization: `Bearer ${tokens.access_token}`,
+        };
+      }
+    } catch (error) {
+      console.warn('Unable to read auth tokens for request:', error);
+    }
+
+    return {};
+  }
+
   private async fetchWithError(url: string, options: RequestInit = {}): Promise<Response> {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...this.getAuthHeaders(),
+      ...(options.headers || {}),
+    };
+
     const response = await fetch(`${API_BASE_URL}${url}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
       ...options,
     });
 
@@ -95,9 +114,22 @@ class AuthApi {
     const response = await this.fetchWithError(`/auth/invitations?tenant_id=${tenantId}&inviter_user_id=${inviterUserId}`, {
       method: 'POST',
       body: JSON.stringify(data),
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    });
+
+    return response.json();
+  }
+
+  async getUserTenants(): Promise<UserTenant[]> {
+    const response = await this.fetchWithError('/auth/users/me/tenants', {
+      method: 'GET',
+    });
+
+    return response.json();
+  }
+
+  async getTenantUsers(): Promise<TenantUser[]> {
+    const response = await this.fetchWithError('/auth/tenants/current/users', {
+      method: 'GET',
     });
 
     return response.json();

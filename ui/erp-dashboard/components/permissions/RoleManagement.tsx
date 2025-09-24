@@ -1,65 +1,18 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, Edit, Trash2, Settings } from 'lucide-react';
 import { permissionService } from '@/lib/api/permissions';
-import {
-  Role,
-  RoleCreateData,
-  RoleUpdateData,
-  AvailableMenusResponse,
-  RolePermission,
-  NavigationModule,
-} from '@/types/permissions';
-import RolePermissionSelector, { PermissionMap } from './RolePermissionSelector';
+import { Role, AvailableMenusResponse, RolePermission } from '@/types/permissions';
 
 interface RoleManagementProps {}
 
-const buildPermissionMap = (permissions?: RolePermission[]): PermissionMap => {
-  if (!permissions) {
-    return {};
-  }
-
-  return permissions.reduce<PermissionMap>((acc, permission) => {
-    acc[permission.menu_item_id] = {
-      menu_item_id: permission.menu_item_id,
-      can_view: permission.can_view ?? false,
-      can_create: permission.can_create ?? false,
-      can_edit: permission.can_edit ?? false,
-      can_delete: permission.can_delete ?? false,
-      can_export: permission.can_export ?? false,
-    };
-    return acc;
-  }, {});
-};
-
-const serializePermissions = (permissions: PermissionMap) =>
-  Object.values(permissions)
-    .filter(
-      (selection) =>
-        selection.can_view ||
-        selection.can_create ||
-        selection.can_edit ||
-        selection.can_delete ||
-        selection.can_export,
-    )
-    .map(({ menu_item_id, can_view, can_create, can_edit, can_delete, can_export }) => ({
-      menu_item_id,
-      can_view,
-      can_create,
-      can_edit,
-      can_delete,
-      can_export,
-    }));
-
 const RoleManagement: React.FC<RoleManagementProps> = () => {
+  const router = useRouter();
   const [roles, setRoles] = useState<Role[]>([]);
   const [availableMenus, setAvailableMenus] = useState<AvailableMenusResponse | null>(null);
-  const [navigationModules, setNavigationModules] = useState<NavigationModule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -69,15 +22,13 @@ const RoleManagement: React.FC<RoleManagementProps> = () => {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [rolesData, menusData, navigationData] = await Promise.all([
+      const [rolesData, menusData] = await Promise.all([
         permissionService.getRoles(),
         permissionService.getAvailableMenus(),
-        permissionService.getNavigation(),
       ]);
 
       setRoles(rolesData);
       setAvailableMenus(menusData);
-      setNavigationModules(navigationData.modules);
       setError('');
     } catch (err) {
       setError('Failed to load roles and permissions');
@@ -88,13 +39,11 @@ const RoleManagement: React.FC<RoleManagementProps> = () => {
   };
 
   const handleCreateRole = () => {
-    setSelectedRole(null);
-    setIsCreateModalOpen(true);
+    router.push('/user-management/roles/create');
   };
 
-  const handleEditRole = (role: Role) => {
-    setSelectedRole(role);
-    setIsEditModalOpen(true);
+  const handleEditRole = (roleId: string) => {
+    router.push(`/user-management/roles/${roleId}/edit`);
   };
 
   const handleDeleteRole = async (roleId: string) => {
@@ -126,7 +75,7 @@ const RoleManagement: React.FC<RoleManagementProps> = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" />
       </div>
     );
   }
@@ -203,7 +152,7 @@ const RoleManagement: React.FC<RoleManagementProps> = () => {
                 </div>
                 <div className="flex space-x-2 ml-4">
                   <button
-                    onClick={() => handleEditRole(role)}
+                    onClick={() => handleEditRole(role.id)}
                     className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors dark:hover:bg-indigo-500/10"
                     title="Edit role"
                   >
@@ -253,171 +202,6 @@ const RoleManagement: React.FC<RoleManagementProps> = () => {
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating your first role.</p>
           </div>
         )}
-      </div>
-
-      {isCreateModalOpen && (
-        <RoleModal
-          mode="create"
-          navigationModules={navigationModules}
-          onSave={async (roleData) => {
-            await permissionService.createRole(roleData as RoleCreateData);
-            setIsCreateModalOpen(false);
-            await loadData();
-          }}
-          onCancel={() => setIsCreateModalOpen(false)}
-        />
-      )}
-
-      {isEditModalOpen && selectedRole && (
-        <RoleModal
-          mode="edit"
-          role={selectedRole}
-          navigationModules={navigationModules}
-          onSave={async (roleData) => {
-            await permissionService.updateRole(selectedRole.id, roleData as RoleUpdateData);
-            setIsEditModalOpen(false);
-            setSelectedRole(null);
-            await loadData();
-          }}
-          onCancel={() => {
-            setIsEditModalOpen(false);
-            setSelectedRole(null);
-          }}
-        />
-      )}
-    </div>
-  );
-};
-
-interface RoleModalProps {
-  mode: 'create' | 'edit';
-  role?: Role;
-  navigationModules: NavigationModule[];
-  onSave: (roleData: RoleCreateData | RoleUpdateData) => Promise<void>;
-  onCancel: () => void;
-}
-
-const RoleModal: React.FC<RoleModalProps> = ({ mode, role, navigationModules, onSave, onCancel }) => {
-  const [formState, setFormState] = useState({
-    name: role?.name ?? '',
-    description: role?.description ?? '',
-  });
-  const [permissionMap, setPermissionMap] = useState<PermissionMap>(() => buildPermissionMap(role?.permissions));
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    setFormState({ name: role?.name ?? '', description: role?.description ?? '' });
-    setPermissionMap(buildPermissionMap(role?.permissions));
-  }, [role, mode]);
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!formState.name.trim()) {
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        name: formState.name.trim(),
-        description: formState.description.trim() || undefined,
-        permissions: serializePermissions(permissionMap),
-      };
-
-      await onSave(payload);
-    } catch (error) {
-      console.error('Error saving role:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-      <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onCancel}></div>
-
-      <div className="relative inline-block align-bottom bg-white dark:bg-gray-900 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full">
-        <form onSubmit={handleSubmit}>
-          <div className="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <div className="sm:flex sm:items-start">
-              <div className="w-full">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
-                  {mode === 'create' ? 'Create New Role' : 'Edit Role'}
-                </h3>
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  {mode === 'create'
-                    ? 'Define a new role with specific permissions for your team members.'
-                    : 'Update role details and permissions.'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-4 py-4 sm:px-6 max-h-[65vh] overflow-y-auto">
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Role Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formState.name}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, name: event.target.value }))}
-                    className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-4 py-3 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-not-allowed disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                    placeholder="Enter role name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
-                  <input
-                    type="text"
-                    value={formState.description}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, description: event.target.value }))}
-                    className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-4 py-3 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-not-allowed disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                    placeholder="Optional description"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">Permissions</h4>
-                {navigationModules.length === 0 ? (
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    No navigable resources are available for this tenant.
-                  </div>
-                ) : (
-                  <RolePermissionSelector
-                    modules={navigationModules}
-                    value={permissionMap}
-                    onChange={setPermissionMap}
-                    disabled={isSubmitting}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gray-50 dark:bg-gray-800 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-            <button
-              type="submit"
-              disabled={isSubmitting || !formState.name.trim()}
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? 'Saving...' : mode === 'create' ? 'Create Role' : 'Update Role'}
-            </button>
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={isSubmitting}
-              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );

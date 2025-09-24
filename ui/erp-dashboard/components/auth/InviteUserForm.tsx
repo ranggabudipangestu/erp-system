@@ -1,27 +1,51 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { CreateInviteRequest } from '@/types/auth';
+
+export interface RoleOption {
+  value: string;
+  label: string;
+  description?: string | null;
+  isSystem?: boolean;
+}
 
 interface InviteUserFormProps {
   onSubmit: (data: CreateInviteRequest) => Promise<void>;
   isLoading: boolean;
   onCancel?: () => void;
+  availableRoles: RoleOption[];
+  isRolesLoading?: boolean;
+  rolesError?: string | null;
+  onRetryLoadRoles?: () => void;
 }
 
-const AVAILABLE_ROLES = [
-  { value: 'admin', label: 'Admin', description: 'Full access to tenant management and users' },
-  { value: 'finance', label: 'Finance', description: 'Access to financial reports and journal entries' },
-  { value: 'sales', label: 'Sales', description: 'Access to create orders and manage sales' },
-  { value: 'warehouse', label: 'Warehouse', description: 'Access to inventory and stock management' },
-  { value: 'production', label: 'Production', description: 'Access to manufacturing and work orders' }
-];
-
-export default function InviteUserForm({ onSubmit, isLoading, onCancel }: InviteUserFormProps) {
+export default function InviteUserForm({
+  onSubmit,
+  isLoading,
+  onCancel,
+  availableRoles,
+  isRolesLoading = false,
+  rolesError = null,
+  onRetryLoadRoles,
+}: InviteUserFormProps) {
   const [formData, setFormData] = useState<CreateInviteRequest>({
     email: '',
     roles: []
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      roles: prev.roles.filter((roleValue) =>
+        availableRoles.some((role) => role.value === roleValue)
+      ),
+    }));
+  }, [availableRoles]);
+
+  const isRoleSelectionDisabled = isLoading || isRolesLoading || !!rolesError || availableRoles.length === 0;
+  const isSubmitDisabled = isLoading || isRolesLoading || availableRoles.length === 0 || !!rolesError;
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -62,6 +86,10 @@ export default function InviteUserForm({ onSubmit, isLoading, onCancel }: Invite
   };
 
   const handleRoleToggle = (roleValue: string) => {
+    if (isRoleSelectionDisabled) {
+      return;
+    }
+
     setFormData(prev => ({
       ...prev,
       roles: prev.roles.includes(roleValue)
@@ -132,35 +160,83 @@ export default function InviteUserForm({ onSubmit, isLoading, onCancel }: Invite
           </p>
           
           <div className="grid grid-cols-1 gap-3">
-            {AVAILABLE_ROLES.map((role) => (
-              <div
-                key={role.value}
-                className={`relative border rounded-lg p-4 cursor-pointer transition-all ${
-                  formData.roles.includes(role.value)
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                } ${errors.roles ? 'border-red-300' : ''}`}
-                onClick={() => handleRoleToggle(role.value)}
-              >
-                <div className="flex items-start">
-                  <input
-                    type="checkbox"
-                    checked={formData.roles.includes(role.value)}
-                    onChange={() => handleRoleToggle(role.value)}
-                    className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    disabled={isLoading}
-                  />
-                  <div className="ml-3 flex-1">
-                    <label className="text-sm font-medium text-gray-900 cursor-pointer">
-                      {role.label}
-                    </label>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {role.description}
-                    </p>
-                  </div>
-                </div>
+            {isRolesLoading && (
+              <div className="flex items-center text-sm text-gray-500">
+                <svg className="animate-spin h-5 w-5 text-blue-600 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Loading roles...
               </div>
-            ))}
+            )}
+
+            {!isRolesLoading && rolesError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                <p className="text-sm text-red-600">{rolesError}</p>
+                {onRetryLoadRoles && (
+                  <button
+                    type="button"
+                    onClick={onRetryLoadRoles}
+                    className="mt-3 inline-flex items-center rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-300"
+                  >
+                    Retry loading roles
+                  </button>
+                )}
+              </div>
+            )}
+
+            {!isRolesLoading && !rolesError && availableRoles.length === 0 && (
+              <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-700">
+                No roles available yet. Create a role first in{' '}
+                <Link href="/user-management/roles" className="font-medium underline hover:text-yellow-800">
+                  Role Management
+                </Link>
+                .
+              </div>
+            )}
+
+            {!isRolesLoading && !rolesError && availableRoles.length > 0 && (
+              <>
+                {availableRoles.map((role) => (
+                  <div
+                    key={role.value}
+                    className={`relative border rounded-lg p-4 transition-all ${
+                      formData.roles.includes(role.value)
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    } ${errors.roles ? 'border-red-300' : ''} ${isRoleSelectionDisabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                    onClick={() => handleRoleToggle(role.value)}
+                  >
+                    <div className="flex items-start">
+                      <input
+                        type="checkbox"
+                        checked={formData.roles.includes(role.value)}
+                        onChange={() => handleRoleToggle(role.value)}
+                        className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        disabled={isRoleSelectionDisabled}
+                      />
+                      <div className="ml-3 flex-1">
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm font-medium text-gray-900 cursor-pointer">
+                            {role.label}
+                          </label>
+                          {role.isSystem && (
+                            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                              System
+                            </span>
+                          )}
+                        </div>
+                        {role.description && (
+                          <p className="text-sm text-gray-500 mt-1">
+                            {role.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
 
           {errors.roles && (
@@ -177,7 +253,7 @@ export default function InviteUserForm({ onSubmit, isLoading, onCancel }: Invite
         <div className="flex flex-col sm:flex-row gap-3 pt-6">
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isSubmitDisabled}
             className="flex-1 flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isLoading ? (

@@ -27,6 +27,7 @@ from .schemas import (
     TenantDto,
     UpdateTenantDto,
     UserTenantDto,
+    TenantUserDto,
     LoginRequestDto,
     LoginResponseDto,
     CreateInviteDto,
@@ -262,6 +263,15 @@ def get_user_tenants(
     return service.get_user_tenants(principal.user_id)
 
 
+@router.get("/tenants/current/users", response_model=List[TenantUserDto])
+def get_tenant_users(
+    principal: SecurityPrincipal = Depends(get_current_principal),
+    service: UserService = Depends(get_user_service)
+):
+    """Get all users that belong to the authenticated tenant"""
+    return service.get_tenant_users(principal.tenant_id)
+
+
 @router.get("/users/me/tenant/primary", response_model=UserTenantDto)
 def get_primary_tenant(
     principal: SecurityPrincipal = Depends(get_current_principal),
@@ -298,6 +308,7 @@ def create_invitation(
         result = service.create_invitation(payload, principal.tenant_id, principal.user_id, client_ip)
         return result
     except ValueError as ex:
+        print(ex)
         raise HTTPException(status_code=400, detail=str(ex))
     except Exception as ex:
         # Log the error in production

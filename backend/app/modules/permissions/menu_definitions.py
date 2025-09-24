@@ -117,6 +117,13 @@ MENU_STRUCTURE: Dict[str, List[MenuItemDef]] = {
             "icon": "wallet",
         },
         {
+            "code": "finance_ar_payment",
+            "name": "Bank Reconciliation",
+            "route": "/finance/reconciliation",
+            "permission_key": "finance.reconciliation.view",
+            "icon": "wallet",
+        },
+        {
             "code": "finance_report_general_ledger",
             "name": "General Ledger",
             "route": "/finance/reports/general-ledger",

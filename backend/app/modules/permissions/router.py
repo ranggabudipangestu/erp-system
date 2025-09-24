@@ -151,6 +151,17 @@ async def get_user_permissions(
         principal.user_id, 
         principal.tenant_id
     )
+    if not permissions:
+        permissions = {
+            perm: {
+                "can_view": True,
+                "can_create": False,
+                "can_edit": False,
+                "can_delete": False,
+                "can_export": False,
+            }
+            for perm in principal.permissions
+        }
     return {"permissions": permissions}
 
 

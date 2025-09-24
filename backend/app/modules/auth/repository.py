@@ -93,6 +93,18 @@ class UserTenantRepository:
         )
         return list(self.session.execute(stmt).scalars().all())
 
+    def get_by_tenant(self, tenant_id: UUID) -> List[UserTenant]:
+        stmt = (
+            select(UserTenant)
+            .options(
+                selectinload(UserTenant.user),
+                selectinload(UserTenant.tenant)
+            )
+            .where(UserTenant.tenant_id == tenant_id)
+        )
+        print(stmt)
+        return list(self.session.execute(stmt).scalars().all())
+
     def get_primary_tenant(self, user_id: UUID) -> Optional[UserTenant]:
         stmt = select(UserTenant).where(
             and_(UserTenant.user_id == user_id, UserTenant.is_primary_tenant == True)

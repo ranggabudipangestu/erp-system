@@ -1,11 +1,11 @@
 from typing import List, Dict, Optional, Any
-from uuid import UUID
-from sqlalchemy.orm import Session, selectinload, joinedload
-from sqlalchemy import and_, or_
+from uuid import UUID, uuid4
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import and_
 from fastapi import HTTPException, status
 
 from app.modules.permissions.models import (
-    Module, MenuItem, RolePermission,
+    Module, MenuItem,
     SubscriptionPlan, PlanMenuItem
 )
 from app.modules.auth.models import Role, Tenant, UserTenant
@@ -138,40 +138,118 @@ class PermissionService:
         navigation = [module for module in navigation if module.items]
         return navigation
 
+    # ------------------------------------------------------------------
+    # Internal helpers
+
+    @staticmethod
+    @staticmethod
+    def _replace_action(view_key: str, action: str) -> str:
+        if action == 'view':
+            return view_key
+        if view_key.endswith('.view'):
+            return f"{view_key.rsplit('.', 1)[0]}.{action}"
+        return f"{view_key}.{action}"
+
+    @staticmethod
+    def _parse_permission_tokens(tokens: Optional[List[str]]) -> Dict[str, Dict[str, bool]]:
+        mapping: Dict[str, Dict[str, bool]] = {}
+        if not tokens:
+            return mapping
+
+        actions = {'view', 'create', 'edit', 'delete', 'export'}
+
+        for token in tokens:
+            if not token:
+                continue
+
+            parts = token.split('.')
+            if not parts:
+                continue
+
+            action = parts[-1].lower()
+            if action in actions:
+                base_parts = parts[:-1]
+                if action != 'view':
+                    base_parts = base_parts + ['view']
+                base_key = '.'.join(base_parts) if base_parts else token
+            else:
+                action = 'view'
+                base_key = token
+
+            base_key = base_key.strip()
+            if not base_key:
+                continue
+
+            flags = mapping.setdefault(
+                base_key,
+                {
+                    "can_view": False,
+                    "can_create": False,
+                    "can_edit": False,
+                    "can_delete": False,
+                    "can_export": False,
+                },
+            )
+
+            if action in ("view", "read", "can_view", ""):
+                flags["can_view"] = True
+            elif action in ("create", "can_create"):
+                flags["can_create"] = True
+                flags["can_view"] = True
+            elif action in ("edit", "update", "can_edit"):
+                flags["can_edit"] = True
+                flags["can_view"] = True
+            elif action in ("delete", "remove", "can_delete"):
+                flags["can_delete"] = True
+                flags["can_view"] = True
+            elif action in ("export", "can_export"):
+                flags["can_export"] = True
+                flags["can_view"] = True
+
+        return mapping
+
+    def _build_role_permission_payload(self, role: Role) -> List[Dict[str, Any]]:
+        permission_flags = self._parse_permission_tokens(role.permissions)
+        if not permission_flags:
+            return []
+
+        menu_items = self.db.query(MenuItem).filter(
+            MenuItem.permission_key.in_(permission_flags.keys())
+        ).all()
+        menu_map = {item.permission_key: item for item in menu_items}
+
+        role_permissions: List[Dict[str, Any]] = []
+        for permission_key, flags in permission_flags.items():
+            menu_item = menu_map.get(permission_key)
+            if not menu_item:
+                continue
+
+            role_permissions.append(
+                {
+                    "id": str(role.id),
+                    "role_id": role.id,
+                    "menu_item_id": menu_item.id,
+                    "can_view": flags["can_view"],
+                    "can_create": flags["can_create"],
+                    "can_edit": flags["can_edit"],
+                    "can_delete": flags["can_delete"],
+                    "can_export": flags["can_export"],
+                    "created_at": role.created_at,
+                    "updated_at": role.updated_at,
+                    "menu_item": menu_item,
+                }
+            )
+
+        return role_permissions
+
     def get_roles_for_tenant(self, tenant_id: UUID) -> List[RoleWithPermissions]:
         """Get all roles for a tenant with their permissions"""
 
         roles = self.db.query(Role).filter(Role.tenant_id == tenant_id).order_by(Role.name).all()
 
-        # Convert auth Role model to RoleWithPermissions schema
         result = []
         for role in roles:
-            # Convert string permissions to RolePermissionWithMenuItem objects
-            role_permissions = []
-            for permission_key in role.permissions:
-                # Find the menu item for this permission
-                menu_item = self.db.query(MenuItem).filter(
-                    MenuItem.permission_key == permission_key
-                ).first()
-
-                if menu_item:
-                    # Create a mock RolePermissionWithMenuItem object
-                    role_perm_data = {
-                        "id": str(role.id),  # Use role id as a placeholder
-                        "role_id": role.id,
-                        "menu_item_id": menu_item.id,
-                        "can_view": True,  # Default permissions
-                        "can_create": False,
-                        "can_edit": False,
-                        "can_delete": False,
-                        "can_export": False,
-                        "created_at": role.created_at,
-                        "updated_at": role.updated_at,
-                        "menu_item": menu_item
-                    }
-                    role_permissions.append(role_perm_data)
-
-            # Create RoleWithPermissions object
+            role_permissions = self._build_role_permission_payload(role)
             role_data = {
                 "id": role.id,
                 "tenant_id": role.tenant_id,
@@ -180,7 +258,7 @@ class PermissionService:
                 "is_system_role": role.is_system_role,
                 "created_at": role.created_at,
                 "updated_at": role.updated_at,
-                "permissions": role_permissions
+                "permissions": role_permissions,
             }
 
             result.append(RoleWithPermissions.model_validate(role_data))
@@ -197,30 +275,7 @@ class PermissionService:
         if not role:
             return None
 
-        # Convert string permissions to RolePermissionWithMenuItem objects
-        role_permissions = []
-        for permission_key in role.permissions:
-            # Find the menu item for this permission
-            menu_item = self.db.query(MenuItem).filter(
-                MenuItem.permission_key == permission_key
-            ).first()
-
-            if menu_item:
-                # Create a mock RolePermissionWithMenuItem object
-                role_perm_data = {
-                    "id": str(role.id),  # Use role id as a placeholder
-                    "role_id": role.id,
-                    "menu_item_id": menu_item.id,
-                    "can_view": True,  # Default permissions
-                    "can_create": False,
-                    "can_edit": False,
-                    "can_delete": False,
-                    "can_export": False,
-                    "created_at": role.created_at,
-                    "updated_at": role.updated_at,
-                    "menu_item": menu_item
-                }
-                role_permissions.append(role_perm_data)
+        role_permissions = self._build_role_permission_payload(role)
 
         # Create RoleWithPermissions object
         role_data = {
@@ -250,44 +305,50 @@ class PermissionService:
                 detail=f"Role '{role_data.name}' already exists"
             )
         
-        # Validate menu items are available for tenant's plan
         available_menus = self.get_available_menus_for_tenant(tenant_id)
         available_menu_ids = [item.id for item in available_menus.menu_items]
-        
-        # Create role
+        permission_map = {UUID(str(item.id)): item.permission_key for item in available_menus.menu_items}
+
+        permission_tokens: set[str] = set()
+
         role = Role(
+            id=uuid4(),
             tenant_id=tenant_id,
             name=role_data.name,
             description=role_data.description,
-            is_system_role=False
+            permissions=[],
+            is_system_role=False,
         )
         self.db.add(role)
-        self.db.flush()  # To get the role ID
-        
-        # Create permissions
+        self.db.flush()
+
         for perm_data in role_data.permissions:
             menu_item_id = UUID(perm_data["menu_item_id"])
-            
-            # Validate menu item is available for this tenant's plan
+
             if menu_item_id not in available_menu_ids:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Menu item not available for your subscription plan"
+                    detail="Menu item not available for your subscription plan",
                 )
-            
-            permission = RolePermission(
-                role_id=role.id,
-                menu_item_id=menu_item_id,
-                can_view=perm_data.get("can_view", False),
-                can_create=perm_data.get("can_create", False),
-                can_edit=perm_data.get("can_edit", False),
-                can_delete=perm_data.get("can_delete", False),
-                can_export=perm_data.get("can_export", False)
-            )
-            self.db.add(permission)
-        
+
+            permission_key = permission_map.get(menu_item_id)
+            if not permission_key:
+                continue
+
+            if perm_data.get("can_view"):
+                permission_tokens.add(permission_key)
+            if perm_data.get("can_create"):
+                permission_tokens.add(self._replace_action(permission_key, 'create'))
+            if perm_data.get("can_edit"):
+                permission_tokens.add(self._replace_action(permission_key, 'edit'))
+            if perm_data.get("can_delete"):
+                permission_tokens.add(self._replace_action(permission_key, 'delete'))
+            if perm_data.get("can_export"):
+                permission_tokens.add(self._replace_action(permission_key, 'export'))
+
+        role.permissions = list(permission_tokens)
         self.db.commit()
-        
+
         return self.get_role_by_id(role.id, tenant_id)
 
     def update_role(self, role_id: UUID, tenant_id: UUID, role_data: RoleUpdate, updated_by: UUID) -> RoleWithPermissions:
@@ -333,39 +394,39 @@ class PermissionService:
         
         # Update permissions if provided
         if role_data.permissions is not None:
-            # Get available menus for validation
             available_menus = self.get_available_menus_for_tenant(tenant_id)
             available_menu_ids = [item.id for item in available_menus.menu_items]
-            
-            # Delete existing permissions
-            self.db.query(RolePermission).filter(
-                RolePermission.role_id == role_id
-            ).delete()
-            
-            # Create new permissions
+            permission_map = {UUID(str(item.id)): item.permission_key for item in available_menus.menu_items}
+            permission_tokens: set[str] = set()
+
             for perm_data in role_data.permissions:
                 menu_item_id = UUID(perm_data["menu_item_id"])
-                
-                # Validate menu item is available
+
                 if menu_item_id not in available_menu_ids:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Menu item not available for your subscription plan"
+                        detail="Menu item not available for your subscription plan",
                     )
-                
-                permission = RolePermission(
-                    role_id=role_id,
-                    menu_item_id=menu_item_id,
-                    can_view=perm_data.get("can_view", False),
-                    can_create=perm_data.get("can_create", False),
-                    can_edit=perm_data.get("can_edit", False),
-                    can_delete=perm_data.get("can_delete", False),
-                    can_export=perm_data.get("can_export", False)
-                )
-                self.db.add(permission)
-        
+
+                permission_key = permission_map.get(menu_item_id)
+                if not permission_key:
+                    continue
+
+                if perm_data.get("can_view"):
+                    permission_tokens.add(permission_key)
+                if perm_data.get("can_create"):
+                    permission_tokens.add(self._replace_action(permission_key, 'create'))
+                if perm_data.get("can_edit"):
+                    permission_tokens.add(self._replace_action(permission_key, 'edit'))
+                if perm_data.get("can_delete"):
+                    permission_tokens.add(self._replace_action(permission_key, 'delete'))
+                if perm_data.get("can_export"):
+                    permission_tokens.add(self._replace_action(permission_key, 'export'))
+
+            role.permissions = list(permission_tokens)
+
         self.db.commit()
-        
+
         return self.get_role_by_id(role_id, tenant_id)
 
     def delete_role(self, role_id: UUID, tenant_id: UUID, deleted_by: UUID) -> bool:
@@ -421,41 +482,34 @@ class PermissionService:
         if not user_tenant or not user_tenant.roles:
             return {}
         
-        # Get all permissions for user's roles
-        permissions_query = self.db.query(RolePermission).join(
-            Role, RolePermission.role_id == Role.id
-        ).join(
-            MenuItem, RolePermission.menu_item_id == MenuItem.id
-        ).filter(
+        roles = self.db.query(Role).filter(
             and_(
                 Role.tenant_id == tenant_id,
                 Role.name.in_(user_tenant.roles)
             )
-        )
-        print("CHECK HERE", permissions_query)
-        
-        # Aggregate permissions (OR operation - if any role grants permission, user has it)
-        user_permissions = {}
-        for perm in permissions_query:
-            key = perm.menu_item.permission_key
-            
-            if key not in user_permissions:
-                user_permissions[key] = {
-                    'can_view': False,
-                    'can_create': False,
-                    'can_edit': False,
-                    'can_delete': False,
-                    'can_export': False
-                }
-            
-            # OR operation for permissions
-            user_permissions[key]['can_view'] = user_permissions[key]['can_view'] or perm.can_view
-            user_permissions[key]['can_create'] = user_permissions[key]['can_create'] or perm.can_create
-            user_permissions[key]['can_edit'] = user_permissions[key]['can_edit'] or perm.can_edit
-            user_permissions[key]['can_delete'] = user_permissions[key]['can_delete'] or perm.can_delete
-            user_permissions[key]['can_export'] = user_permissions[key]['can_export'] or perm.can_export
-        
-        return user_permissions
+        ).all()
+
+        aggregated: Dict[str, Dict[str, bool]] = {}
+        for role in roles:
+            decoded = self._parse_permission_tokens(role.permissions)
+            for permission_key, flags in decoded.items():
+                entry = aggregated.setdefault(
+                    permission_key,
+                    {
+                        'can_view': False,
+                        'can_create': False,
+                        'can_edit': False,
+                        'can_delete': False,
+                        'can_export': False,
+                    },
+                )
+                entry['can_view'] = entry['can_view'] or flags['can_view']
+                entry['can_create'] = entry['can_create'] or flags['can_create']
+                entry['can_edit'] = entry['can_edit'] or flags['can_edit']
+                entry['can_delete'] = entry['can_delete'] or flags['can_delete']
+                entry['can_export'] = entry['can_export'] or flags['can_export']
+
+        return aggregated
 
     def get_all_modules(self) -> List[ModuleSchema]:
         """Get all active modules"""

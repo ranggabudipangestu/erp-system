@@ -68,6 +68,18 @@ export interface UserTenant {
   tenant?: Tenant;
 }
 
+export interface TenantUser {
+  membership_id: string;
+  user_id: string;
+  email: string;
+  name: string;
+  status: string;
+  roles: string[];
+  is_primary: boolean;
+  joined_at?: string;
+  last_active_at?: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;

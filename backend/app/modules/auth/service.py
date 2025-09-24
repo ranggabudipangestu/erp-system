@@ -25,6 +25,7 @@ from .schemas import (
     TenantDto, 
     UserDto, 
     UserTenantDto,
+    TenantUserDto,
     CreateUserDto,
     UpdateTenantDto,
     TenantSettingsDto,
@@ -105,6 +106,24 @@ def map_user_tenant_to_dto(entity: UserTenant) -> UserTenantDto:
         joined_at=entity.joined_at,
         updated_at=entity.updated_at,
         tenant=tenant_dto,
+    )
+
+
+def map_user_tenant_to_tenant_user(entity: UserTenant) -> TenantUserDto:
+    user = entity.user
+    if not user:
+        raise ValueError("User relationship not loaded for UserTenant entity")
+
+    return TenantUserDto(
+        membership_id=entity.id,
+        user_id=entity.user_id,
+        email=user.email,
+        name=user.name,
+        status=user.status,
+        roles=entity.roles or [],
+        is_primary=entity.is_primary_tenant,
+        joined_at=entity.joined_at,
+        last_active_at=user.updated_at,
     )
 
 
@@ -398,6 +417,10 @@ class UserService:
     def get_primary_tenant(self, user_id: UUID) -> Optional[UserTenantDto]:
         user_tenant = self.user_tenant_repo.get_primary_tenant(user_id)
         return map_user_tenant_to_dto(user_tenant) if user_tenant else None
+
+    def get_tenant_users(self, tenant_id: UUID) -> List[TenantUserDto]:
+        memberships = self.user_tenant_repo.get_by_tenant(tenant_id)
+        return [map_user_tenant_to_tenant_user(membership) for membership in memberships]
 
     def create_user(self, payload: CreateUserDto, tenant_id: UUID, roles: List[str] = None) -> UserDto:
         if self.user_repo.email_exists(payload.email):
