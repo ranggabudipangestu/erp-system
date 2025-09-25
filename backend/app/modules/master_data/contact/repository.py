@@ -1,0 +1,123 @@
+from __future__ import annotations
+
+from typing import Iterable, Sequence
+from uuid import UUID
+
+from sqlalchemy import select, or_, func, update as sa_update
+from sqlalchemy.orm import Session
+
+from .models import Contact, ContactStatus
+
+
+class ContactRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def _base_query(self, tenant_id: UUID):
+        return select(Contact).where(Contact.tenant_id == tenant_id)
+
+    def list(
+        self,
+        tenant_id: UUID,
+        *,
+        roles: Sequence[str] | None = None,
+        status: ContactStatus | None = None,
+        search: str | None = None,
+    ) -> list[Contact]:
+        stmt = self._base_query(tenant_id)
+
+        if status:
+            stmt = stmt.where(Contact.status == status)
+
+        if roles:
+            for role in roles:
+                stmt = stmt.where(Contact.roles.contains([role]))
+
+        if search:
+            term = f"%{search}%"
+            stmt = stmt.where(
+                or_(
+                    Contact.name.ilike(term),
+                    Contact.code.ilike(term),
+                    func.coalesce(Contact.email, "").ilike(term),
+                    func.coalesce(Contact.phone, "").ilike(term),
+                )
+            )
+
+        stmt = stmt.order_by(Contact.name.asc())
+        result = self.session.execute(stmt).scalars().all()
+        return list(result)
+
+    def get_by_id(self, tenant_id: UUID, contact_id: UUID) -> Contact | None:
+        stmt = self._base_query(tenant_id).where(Contact.id == contact_id)
+        return self.session.execute(stmt).scalar_one_or_none()
+
+    def get_by_code(self, tenant_id: UUID, code: str) -> Contact | None:
+        stmt = self._base_query(tenant_id).where(Contact.code == code)
+        return self.session.execute(stmt).scalar_one_or_none()
+
+    def code_exists(self, tenant_id: UUID, code: str, *, exclude_id: UUID | None = None) -> bool:
+        stmt = self._base_query(tenant_id).where(Contact.code == code)
+        if exclude_id:
+            stmt = stmt.where(Contact.id != exclude_id)
+        return self.session.execute(stmt).scalar_one_or_none() is not None
+
+    def create(self, contact: Contact) -> Contact:
+        self.session.add(contact)
+        self.session.flush()
+        return contact
+
+    def update(self, contact: Contact) -> Contact:
+        self.session.flush()
+        return contact
+
+    def archive(self, tenant_id: UUID, contact_id: UUID) -> bool:
+        stmt = (
+            sa_update(Contact)
+            .where(Contact.tenant_id == tenant_id, Contact.id == contact_id)
+            .values(status=ContactStatus.ARCHIVED, archived_at=func.now())
+        )
+        result = self.session.execute(stmt)
+        self.session.flush()
+        return result.rowcount > 0
+
+    def bulk_upsert(self, tenant_id: UUID, contacts: Iterable[Contact]) -> tuple[int, int]:
+        created = 0
+        updated = 0
+
+        for contact in contacts:
+            existing = self.get_by_code(tenant_id, contact.code)
+            if existing:
+                # Update fields
+                for attr in (
+                    "name",
+                    "email",
+                    "phone",
+                    "address_billing",
+                    "address_shipping",
+                    "tax_number",
+                    "roles",
+                    "status",
+                    "credit_limit",
+                    "distribution_channel",
+                    "pic_name",
+                    "bank_account_number",
+                    "payment_terms",
+                    "sales_contact_name",
+                    "employee_id",
+                    "department",
+                    "job_title",
+                    "employment_status",
+                    "updated_by",
+                    "updated_at",
+                ):
+                    setattr(existing, attr, getattr(contact, attr))
+                existing.archived_at = contact.archived_at
+                updated += 1
+            else:
+                self.session.add(contact)
+                created += 1
+
+        self.session.flush()
+        return created, updated
+
