@@ -156,7 +156,7 @@ class PermissionService:
         if not tokens:
             return mapping
 
-        actions = {'view', 'create', 'edit', 'delete', 'export'}
+        actions = {'view', 'create', 'edit', 'update', 'delete', 'export'}
 
         for token in tokens:
             if not token:
@@ -205,7 +205,6 @@ class PermissionService:
             elif action in ("export", "can_export"):
                 flags["can_export"] = True
                 flags["can_view"] = True
-
         return mapping
 
     def _build_role_permission_payload(self, role: Role) -> List[Dict[str, Any]]:
@@ -395,9 +394,9 @@ class PermissionService:
         # Update permissions if provided
         if role_data.permissions is not None:
             available_menus = self.get_available_menus_for_tenant(tenant_id)
-            available_menu_ids = [item.id for item in available_menus.menu_items]
+            available_menu_ids = {UUID(str(item.id)) for item in available_menus.menu_items}
             permission_map = {UUID(str(item.id)): item.permission_key for item in available_menus.menu_items}
-            permission_tokens: set[str] = set()
+            permission_tokens: list[str] = []
 
             for perm_data in role_data.permissions:
                 menu_item_id = UUID(perm_data["menu_item_id"])
@@ -413,17 +412,20 @@ class PermissionService:
                     continue
 
                 if perm_data.get("can_view"):
-                    permission_tokens.add(permission_key)
+                    permission_tokens.append(permission_key)
                 if perm_data.get("can_create"):
-                    permission_tokens.add(self._replace_action(permission_key, 'create'))
+                    permission_tokens.append(self._replace_action(permission_key, 'create'))
                 if perm_data.get("can_edit"):
-                    permission_tokens.add(self._replace_action(permission_key, 'edit'))
+                    permission_tokens.append(self._replace_action(permission_key, 'edit'))
                 if perm_data.get("can_delete"):
-                    permission_tokens.add(self._replace_action(permission_key, 'delete'))
+                    permission_tokens.append(self._replace_action(permission_key, 'delete'))
                 if perm_data.get("can_export"):
-                    permission_tokens.add(self._replace_action(permission_key, 'export'))
+                    permission_tokens.append(self._replace_action(permission_key, 'export'))
 
-            role.permissions = list(permission_tokens)
+            role.permissions = permission_tokens
+        else:
+            # If permissions are omitted in the payload, keep existing ones intact
+            role.permissions = role.permissions or []
 
         self.db.commit()
 
@@ -488,9 +490,12 @@ class PermissionService:
                 Role.name.in_(user_tenant.roles)
             )
         ).all()
+        
 
         aggregated: Dict[str, Dict[str, bool]] = {}
         for role in roles:
+            print("CEK THE ROLES", role.name, role.permissions)
+            # print("CEK THE ROLE PERMISSIONS", role.permissions)
             decoded = self._parse_permission_tokens(role.permissions)
             for permission_key, flags in decoded.items():
                 entry = aggregated.setdefault(

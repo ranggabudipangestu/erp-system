@@ -105,3 +105,21 @@ def require_permissions(required: List[str]):
         return principal
 
     return _dep
+
+
+def require_any_permission(options: List[str]):
+    """Dependency factory that allows access when user has at least one permission in options."""
+
+    def _dep(principal: SecurityPrincipal = Depends(get_current_principal)) -> SecurityPrincipal:
+        if not options:
+            return principal
+
+        if not any(opt in principal.permissions for opt in options):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing required permissions (any of): {', '.join(options)}",
+            )
+
+        return principal
+
+    return _dep

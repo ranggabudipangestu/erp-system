@@ -98,8 +98,8 @@ const MenuRenderer: React.FC<MenuRendererProps> = ({
               {item.children && shouldShowText && (
                 <div
                   className={`overflow-hidden transition-all duration-300 ${
-                    openSubmenus[item.id] ? 'max-h-96' : 'max-h-0'
-                  }`}
+                    openSubmenus[item.id] ? 'max-h-[1200px]' : 'max-h-0'
+                  } ${openSubmenus[item.id] ? 'overflow-y-auto pr-1' : ''}`}
                 >
                   <div className={`${level === 0 ? 'mt-2' : 'mt-1'}`}>
                     <MenuRenderer

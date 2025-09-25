@@ -19,6 +19,7 @@ from app.core.security import (
     SecurityPrincipal,
     get_current_principal,
     require_permissions,
+    require_any_permission,
 )
 
 
@@ -105,7 +106,7 @@ async def create_role(
 async def update_role(
     role_id: UUID,
     role_data: RoleUpdate,
-    principal: SecurityPrincipal = Depends(require_permissions(["roles.edit"])),
+    principal: SecurityPrincipal = Depends(require_any_permission(["roles.update", "roles.edit"])),
     permission_service: PermissionService = Depends(get_permission_service)
 ):
     """Update role and permissions"""
