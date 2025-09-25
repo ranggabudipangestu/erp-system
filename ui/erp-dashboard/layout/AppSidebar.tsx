@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import { HorizontaLDots } from "@/icons/index";
 import { useMenuData } from "@/hooks/useMenuData";
+import type { MenuItem } from "@/hooks/useMenuData";
 import MenuRenderer from "@/components/menu/MenuRenderer";
 import { getIconComponent } from "@/utils/iconMapper";
 
@@ -21,6 +22,33 @@ const AppSidebar: React.FC = () => {
 
   const mobileNavRef = useRef<HTMLElement | null>(null);
   const mobilePanelRef = useRef<HTMLDivElement | null>(null);
+
+  const groupModuleItems = (children: MenuItem[] = []) => {
+    const buckets: Record<string, MenuItem[]> = {
+      transactions: [],
+      reports: [],
+      other: [],
+    };
+
+    children.forEach((item) => {
+      const category = item.category ?? 'other';
+      if (category in buckets) {
+        buckets[category].push(item);
+      } else {
+        buckets.other.push(item);
+      }
+    });
+
+    const order: Array<{ key: keyof typeof buckets; label: string }> = [
+      { key: 'transactions', label: 'Transactions' },
+      { key: 'reports', label: 'Reports' },
+      { key: 'other', label: 'Others' },
+    ];
+
+    return order
+      .filter(({ key }) => buckets[key].length > 0)
+      .map(({ key, label }) => ({ key, label, items: buckets[key] }));
+  };
 
   const handleSubmenuToggle = (itemId: string) => {
     setOpenSubmenus((prev) => ({
@@ -205,26 +233,33 @@ const AppSidebar: React.FC = () => {
               </button>
             </div>
             <div className="grid grid-cols-4 gap-3 px-4 pb-4">
-              {mobileActiveModule.children?.map((child) => {
-                const ChildIcon = child.icon ? getIconComponent(child.icon) : null;
-                return (
-                  <Link
-                    href={child.path ?? "#"}
-                    key={child.id}
-                    className={`flex flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center text-xs transition ${
-                      child.path === pathname
-                        ? "border-brand-500 bg-brand-500/10 text-brand-600"
-                        : "border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-                    }`}
-                    onClick={() => setMobileActiveModuleId(null)}
-                  >
-                    <span className="flex h-8 w-8 items-center justify-center text-lg">
-                      {ChildIcon || <HorizontaLDots className="h-5 w-5" />}
-                    </span>
-                    <span className="line-clamp-2">{child.name}</span>
-                  </Link>
-                );
-              })}
+              {groupModuleItems(mobileActiveModule.children ?? []).map((group) => (
+                <React.Fragment key={`mobile-${group.key}`}>
+                  <div className="col-span-4 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    {group.label}
+                  </div>
+                  {group.items.map((child) => {
+                    const ChildIcon = child.icon ? getIconComponent(child.icon) : null;
+                    return (
+                      <Link
+                        href={child.path ?? "#"}
+                        key={child.id}
+                        className={`flex flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center text-xs transition ${
+                          child.path === pathname
+                            ? "border-brand-500 bg-brand-500/10 text-brand-600"
+                            : "border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                        }`}
+                        onClick={() => setMobileActiveModuleId(null)}
+                      >
+                        <span className="flex h-8 w-8 items-center justify-center text-lg">
+                          {ChildIcon || <HorizontaLDots className="h-5 w-5" />}
+                        </span>
+                        <span className="line-clamp-2">{child.name}</span>
+                      </Link>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
             </div>
           </div>
         )}
@@ -357,36 +392,43 @@ const AppSidebar: React.FC = () => {
           </div>
           <div className="h-full overflow-y-auto px-5 py-4">
             <ul className="space-y-2">
-              {activeModule.children?.map((child) => {
-                const isActiveChild = child.path === pathname;
-                const childIcon = getIconComponent(child.icon);
-
-                return (
-                  <li key={child.id}>
-                    <Link
-                      href={child.path ?? "#"}
-                      className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                        isActiveChild
-                          ? "bg-brand-500 text-white"
-                          : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-                      }`}
-                      onClick={closeModulePanel}
-                    >
-                      <span
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center ${
-                          isActiveChild
-                            ? "text-white"
-                            : "text-gray-400 group-hover:text-gray-600 dark:text-gray-400 dark:group-hover:text-gray-200"
-                        }`}
-                        aria-hidden="true"
-                      >
-                        {childIcon}
-                      </span>
-                      <span className="truncate">{child.name}</span>
-                    </Link>
+              {groupModuleItems(activeModule.children ?? []).map((group) => (
+                <React.Fragment key={`desktop-${group.key}`}>
+                  <li className="px-3 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    {group.label}
                   </li>
-                );
-              })}
+                  {group.items.map((child) => {
+                    const isActiveChild = child.path === pathname;
+                    const childIcon = getIconComponent(child.icon);
+
+                    return (
+                      <li key={child.id}>
+                        <Link
+                          href={child.path ?? "#"}
+                          className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                            isActiveChild
+                              ? "bg-brand-500 text-white"
+                              : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                          }`}
+                          onClick={closeModulePanel}
+                        >
+                          <span
+                            className={`flex h-5 w-5 shrink-0 items-center justify-center ${
+                              isActiveChild
+                                ? "text-white"
+                                : "text-gray-400 group-hover:text-gray-600 dark:text-gray-400 dark:group-hover:text-gray-200"
+                            }`}
+                            aria-hidden="true"
+                          >
+                            {childIcon}
+                          </span>
+                          <span className="truncate">{child.name}</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
             </ul>
           </div>
         </div>

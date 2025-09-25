@@ -11,6 +11,7 @@ export interface MenuItem {
   pro?: boolean;
   new?: boolean;
   children?: MenuItem[];
+  category?: 'transactions' | 'reports' | 'other';
 }
 
 export interface MenuData {
@@ -31,6 +32,10 @@ const MODULE_ICON_MAP: Record<string, string> = {
 };
 
 const transformNavigation = (navModules: NavigationModule[]): MenuData => {
+  const resolveCategory = (route?: string): 'transactions' | 'reports' => {
+    return route && route.includes('/reports/') ? 'reports' : 'transactions';
+  };
+
   const mainMenu: MenuItem[] = navModules.map((module) => ({
     id: module.code,
     name: module.name,
@@ -42,6 +47,7 @@ const transformNavigation = (navModules: NavigationModule[]): MenuData => {
         name: item.name,
         path: item.route!,
         icon: item.icon,
+        category: resolveCategory(item.route),
       })),
   })).filter((module) => (module.children?.length ?? 0) > 0);
 

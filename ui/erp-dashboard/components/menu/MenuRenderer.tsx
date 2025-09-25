@@ -64,131 +64,196 @@ const MenuRenderer: React.FC<MenuRendererProps> = ({
     }
   };
   
+  const renderHeading = (label: string, key: string) => (
+    <li
+      key={`heading-${key}`}
+      className={`px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 ${
+        level === 1 ? getIndentClass(level) : ''
+      }`}
+    >
+      {label}
+    </li>
+  );
+
+  const groupedItems = () => {
+    if (level !== 1) {
+      return [{ groupKey: 'default', label: '', entries: items }];
+    }
+
+    const buckets: Record<string, MenuItem[]> = {
+      transactions: [],
+      reports: [],
+      other: [],
+    };
+
+    items.forEach((item) => {
+      const category = item.category ?? 'other';
+      if (category in buckets) {
+        buckets[category].push(item);
+      } else {
+        buckets.other.push(item);
+      }
+    });
+
+    const order: Array<{ key: keyof typeof buckets; label: string }> = [
+      { key: 'transactions', label: 'Transactions' },
+      { key: 'reports', label: 'Reports' },
+      { key: 'other', label: 'Others' },
+    ];
+
+    return order
+      .filter(({ key }) => buckets[key].length > 0)
+      .map(({ key, label }) => ({ groupKey: key, label, entries: buckets[key] }));
+  };
+
+  const sections = groupedItems();
+
+  const renderLeaf = (item: MenuItem, indentClass: string): React.ReactElement | null => {
+    if (!item.path) {
+      return null;
+    }
+
+    const leafActive = isActive(item.path);
+    return (
+      <li key={item.id}>
+        <div className={indentClass}>
+          <Link
+            href={item.path}
+            className={level > 0 ? `group menu-dropdown-item ${
+              leafActive
+                ? 'menu-dropdown-item-active'
+                : 'menu-dropdown-item-inactive'
+            }` : `menu-item group ${
+              leafActive
+                ? 'menu-item-active'
+                : 'menu-item-inactive'
+            }`}
+          >
+            {renderIcon(item.icon, leafActive, level)}
+
+            {shouldShowText && (
+              <>
+                <span className={level === 0 ? 'menu-item-text' : ''}>
+                  {item.name}
+                </span>
+
+                <span className="flex items-center gap-1 ml-auto">
+                  {item.new && (
+                    <span
+                      className={`ml-auto ${
+                        leafActive && level > 0
+                          ? 'menu-dropdown-badge-active'
+                          : level > 0
+                          ? 'menu-dropdown-badge-inactive'
+                          : 'bg-green-100 text-green-600 bg-opacity-10'
+                      } menu-dropdown-badge`}
+                    >
+                      new
+                    </span>
+                  )}
+                  {item.pro && (
+                    <span
+                      className={`ml-auto ${
+                        leafActive && level > 0
+                          ? 'menu-dropdown-badge-active'
+                          : level > 0
+                          ? 'menu-dropdown-badge-inactive'
+                          : 'bg-orange-100 text-orange-600 bg-opacity-10'
+                      } menu-dropdown-badge`}
+                    >
+                      pro
+                    </span>
+                  )}
+                </span>
+              </>
+            )}
+          </Link>
+        </div>
+      </li>
+    );
+  };
+
+  const renderNodeWithChildren = (item: MenuItem, indentClass: string): React.ReactElement => {
+    const itemActive = isItemActive(item);
+    const childrenItems = item.children ?? [];
+
+    return (
+      <li key={item.id}>
+        <div className={indentClass}>
+          <button
+            onClick={() => onSubmenuToggle(item.id)}
+            className={`menu-item group w-full ${
+              itemActive
+                ? 'menu-item-active'
+                : 'menu-item-inactive'
+            } cursor-pointer ${
+              !shouldShowText && level === 0
+                ? 'lg:justify-center'
+                : 'lg:justify-start'
+            }`}
+          >
+            {renderIcon(item.icon, itemActive, level)}
+
+            {shouldShowText && (
+              <>
+                <span className="menu-item-text">{item.name}</span>
+                <ChevronDownIcon
+                  className={`ml-auto w-5 h-5 transition-transform duration-200 ${
+                    openSubmenus[item.id]
+                      ? 'rotate-180 text-brand-500'
+                      : ''
+                  }`}
+                />
+              </>
+            )}
+          </button>
+
+          {shouldShowText && (
+            <div
+              className={`overflow-hidden transition-all duration-300 ${
+                openSubmenus[item.id] ? 'max-h-[1200px]' : 'max-h-0'
+              } ${openSubmenus[item.id] ? 'overflow-y-auto pr-1' : ''}`}
+            >
+              <div className={`${level === 0 ? 'mt-2' : 'mt-1'}`}>
+                <MenuRenderer
+                  items={childrenItems}
+                  isExpanded={isExpanded}
+                  isHovered={isHovered}
+                  isMobileOpen={isMobileOpen}
+                  openSubmenus={openSubmenus}
+                  onSubmenuToggle={onSubmenuToggle}
+                  level={level + 1}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </li>
+    );
+  };
+
   return (
     <ul className={`flex flex-col ${level === 0 ? 'gap-4' : 'gap-2'}`}>
-      {items.map((item) => {
+      {sections.flatMap((section) => {
         const indentClass = getIndentClass(level);
-        const hasChildren = Array.isArray(item.children) && item.children.length > 0;
 
-        if (hasChildren) {
-          const itemActive = isItemActive(item);
-          return (
-            <li key={item.id}>
-              <div className={indentClass}>
-                <button
-                  onClick={() => onSubmenuToggle(item.id)}
-                  className={`menu-item group w-full ${
-                    itemActive
-                      ? 'menu-item-active'
-                      : 'menu-item-inactive'
-                  } cursor-pointer ${
-                    !shouldShowText && level === 0
-                      ? 'lg:justify-center'
-                      : 'lg:justify-start'
-                  }`}
-                >
-                  {renderIcon(item.icon, itemActive, level)}
+        const itemsForSection = section.entries.map((item) => {
+          const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+          if (hasChildren) {
+            return renderNodeWithChildren(item, indentClass);
+          }
+          return renderLeaf(item, indentClass);
+        }).filter((node): node is React.ReactElement => Boolean(node));
 
-                  {shouldShowText && (
-                    <>
-                      <span className="menu-item-text">{item.name}</span>
-                      <ChevronDownIcon
-                        className={`ml-auto w-5 h-5 transition-transform duration-200 ${
-                          openSubmenus[item.id]
-                            ? 'rotate-180 text-brand-500'
-                            : ''
-                        }`}
-                      />
-                    </>
-                  )}
-                </button>
-
-                {shouldShowText && (
-                  <div
-                    className={`overflow-hidden transition-all duration-300 ${
-                      openSubmenus[item.id] ? 'max-h-[1200px]' : 'max-h-0'
-                    } ${openSubmenus[item.id] ? 'overflow-y-auto pr-1' : ''}`}
-                  >
-                    <div className={`${level === 0 ? 'mt-2' : 'mt-1'}`}>
-                      <MenuRenderer
-                        items={item.children ?? []}
-                        isExpanded={isExpanded}
-                        isHovered={isHovered}
-                        isMobileOpen={isMobileOpen}
-                        openSubmenus={openSubmenus}
-                        onSubmenuToggle={onSubmenuToggle}
-                        level={level + 1}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </li>
-          );
+        if (!itemsForSection.length) {
+          return [];
         }
 
-        if (item.path) {
-          const leafActive = isActive(item.path);
-          return (
-            <li key={item.id}>
-              <div className={indentClass}>
-                <Link
-                  href={item.path}
-                  className={level > 0 ? `group menu-dropdown-item ${
-                    leafActive
-                      ? 'menu-dropdown-item-active'
-                      : 'menu-dropdown-item-inactive'
-                  }` : `menu-item group ${
-                    leafActive
-                      ? 'menu-item-active'
-                      : 'menu-item-inactive'
-                  }`}
-                >
-                  {renderIcon(item.icon, leafActive, level)}
-
-                  {shouldShowText && (
-                    <>
-                      <span className={level === 0 ? 'menu-item-text' : ''}>
-                        {item.name}
-                      </span>
-
-                      <span className="flex items-center gap-1 ml-auto">
-                        {item.new && (
-                          <span
-                            className={`ml-auto ${
-                              leafActive && level > 0
-                                ? 'menu-dropdown-badge-active'
-                                : level > 0
-                                ? 'menu-dropdown-badge-inactive'
-                                : 'bg-green-100 text-green-600 bg-opacity-10'
-                            } menu-dropdown-badge`}
-                          >
-                            new
-                          </span>
-                        )}
-                        {item.pro && (
-                          <span
-                            className={`ml-auto ${
-                              leafActive && level > 0
-                                ? 'menu-dropdown-badge-active'
-                                : level > 0
-                                ? 'menu-dropdown-badge-inactive'
-                                : 'bg-orange-100 text-orange-600 bg-opacity-10'
-                            } menu-dropdown-badge`}
-                          >
-                            pro
-                          </span>
-                        )}
-                      </span>
-                    </>
-                  )}
-                </Link>
-              </div>
-            </li>
-          );
+        if (section.label) {
+          return [renderHeading(section.label, section.groupKey), ...itemsForSection];
         }
 
-        return null;
+        return itemsForSection;
       })}
     </ul>
   );
