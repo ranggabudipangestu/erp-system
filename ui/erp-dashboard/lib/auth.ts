@@ -64,6 +64,16 @@ export const AuthService = {
     localStorage.removeItem('erp_user_info');
   },
 
+  handleUnauthorized(): void {
+    if (typeof window === 'undefined') return;
+
+    this.clearAuth();
+
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  },
+
   // Get user info
   getUserInfo(): any {
     if (typeof window === 'undefined') return null;

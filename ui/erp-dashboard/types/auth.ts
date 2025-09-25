@@ -32,6 +32,20 @@ export interface TenantSettings {
   tax_profile?: Record<string, any>;
 }
 
+export interface ApiErrorPayload {
+  code: string;
+  message: string;
+  errors: any[];
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  traceId: string;
+  error: ApiErrorPayload | Record<string, never>;
+  metadata: Record<string, any>;
+  result: T;
+}
+
 export interface Tenant {
   id: string;
   name: string;

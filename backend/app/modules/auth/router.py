@@ -1,9 +1,10 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 
 from app.core.db import session_scope
 from app.core.security import SecurityPrincipal, get_current_principal
+from app.common.api_response import success_response, error_response
 from .repository import (
     TenantRepository, 
     UserRepository, 
@@ -138,7 +139,7 @@ def get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 # Signup endpoints
-@router.post("/signup", response_model=SignupResponseDto, status_code=201)
+@router.post("/signup", status_code=201)
 def signup(
     payload: SignupRequestDto, 
     request: Request,
@@ -158,16 +159,24 @@ def signup(
     try:
         client_ip = get_client_ip(request)
         result = service.signup(payload, client_ip)
-        return result
+        return success_response(result, status_code=201)
     except ValueError as ex:
-        raise HTTPException(status_code=400, detail=str(ex))
+        return error_response(
+            code="BAD_REQUEST",
+            message=str(ex),
+            status_code=400,
+        )
     except Exception as ex:
         # Log the error in production
         print(ex)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return error_response(
+            code="INTERNAL_SERVER_ERROR",
+            message="Internal server error",
+            status_code=500,
+        )
 
 
-@router.post("/login", response_model=LoginResponseDto)
+@router.post("/login")
 def login(
     payload: LoginRequestDto,
     request: Request,
@@ -194,17 +203,29 @@ def login(
         )
         
         if not result:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-            
-        return LoginResponseDto(**result)
+            return error_response(
+                code="UNAUTHORIZED",
+                message="Invalid credentials",
+                status_code=401,
+            )
+
+        return success_response(LoginResponseDto(**result))
         
     except ValueError as ex:
         # Rate limiting or validation errors
-        raise HTTPException(status_code=429, detail=str(ex))
+        return error_response(
+            code="TOO_MANY_REQUESTS",
+            message=str(ex),
+            status_code=429,
+        )
     except Exception as ex:
         # Log the error in production
         print(ex)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return error_response(
+            code="INTERNAL_SERVER_ERROR",
+            message="Internal server error",
+            status_code=500,
+        )
 
 
 @router.post("/logout")
@@ -217,17 +238,24 @@ def logout(
     try:
         client_ip = get_client_ip(request)
         revoked_sessions = service.logout(principal.user_id, principal.tenant_id, client_ip)
-        return {
-            "message": "Logged out successfully",
-            "revoked_sessions": revoked_sessions,
-        }
+        return success_response(
+            {
+                "message": "Logged out successfully",
+                "revoked_sessions": revoked_sessions,
+            },
+            metadata={"revokedCount": revoked_sessions}
+        )
     except Exception as ex:
         print(f"Failed to logout user {principal.user_id}: {ex}")
-        raise HTTPException(status_code=500, detail="Logout failed")
+        return error_response(
+            code="LOGOUT_FAILED",
+            message="Logout failed",
+            status_code=500,
+        )
 
 
 # Tenant management endpoints  
-@router.get("/tenants/current", response_model=TenantDto)
+@router.get("/tenants/current")
 def get_current_tenant(
     principal: SecurityPrincipal = Depends(get_current_principal),
     service: TenantService = Depends(get_tenant_service)
@@ -235,11 +263,15 @@ def get_current_tenant(
     """Get current tenant information"""
     tenant = service.get_current_tenant(principal.tenant_id)
     if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-    return tenant
+        return error_response(
+            code="NOT_FOUND",
+            message="Tenant not found",
+            status_code=404,
+        )
+    return success_response(tenant)
 
 
-@router.patch("/tenants/current", response_model=TenantDto)
+@router.patch("/tenants/current")
 def update_current_tenant(
     payload: UpdateTenantDto,
     principal: SecurityPrincipal = Depends(get_current_principal),
@@ -248,31 +280,37 @@ def update_current_tenant(
     """Update current tenant settings"""
     try:
         tenant = service.update_tenant(principal.tenant_id, payload, principal.user_id)
-        return tenant
+        return success_response(tenant)
     except ValueError as ex:
-        raise HTTPException(status_code=404, detail=str(ex))
+        return error_response(
+            code="NOT_FOUND",
+            message=str(ex),
+            status_code=404,
+        )
 
 
 # User management endpoints
-@router.get("/users/me/tenants", response_model=List[UserTenantDto])
+@router.get("/users/me/tenants")
 def get_user_tenants(
     principal: SecurityPrincipal = Depends(get_current_principal),
     service: UserService = Depends(get_user_service)
 ):
     """Get all tenants for current user"""
-    return service.get_user_tenants(principal.user_id)
+    tenants = service.get_user_tenants(principal.user_id)
+    return success_response(tenants, metadata={"count": len(tenants)})
 
 
-@router.get("/tenants/current/users", response_model=List[TenantUserDto])
+@router.get("/tenants/current/users")
 def get_tenant_users(
     principal: SecurityPrincipal = Depends(get_current_principal),
     service: UserService = Depends(get_user_service)
 ):
     """Get all users that belong to the authenticated tenant"""
-    return service.get_tenant_users(principal.tenant_id)
+    users = service.get_tenant_users(principal.tenant_id)
+    return success_response(users, metadata={"count": len(users)})
 
 
-@router.get("/users/me/tenant/primary", response_model=UserTenantDto)
+@router.get("/users/me/tenant/primary")
 def get_primary_tenant(
     principal: SecurityPrincipal = Depends(get_current_principal),
     service: UserService = Depends(get_user_service)
@@ -280,12 +318,16 @@ def get_primary_tenant(
     """Get primary tenant for current user"""
     tenant = service.get_primary_tenant(principal.user_id)
     if not tenant:
-        raise HTTPException(status_code=404, detail="No primary tenant found")
-    return tenant
+        return error_response(
+            code="NOT_FOUND",
+            message="No primary tenant found",
+            status_code=404,
+        )
+    return success_response(tenant)
 
 
 # Invitation endpoints
-@router.post("/invitations", response_model=InviteDto, status_code=201)
+@router.post("/invitations", status_code=201)
 def create_invitation(
     payload: CreateInviteDto,
     request: Request,
@@ -306,17 +348,25 @@ def create_invitation(
     try:
         client_ip = get_client_ip(request)
         result = service.create_invitation(payload, principal.tenant_id, principal.user_id, client_ip)
-        return result
+        return success_response(result, status_code=201)
     except ValueError as ex:
         print(ex)
-        raise HTTPException(status_code=400, detail=str(ex))
+        return error_response(
+            code="BAD_REQUEST",
+            message=str(ex),
+            status_code=400,
+        )
     except Exception as ex:
         # Log the error in production
         print(f"Failed to create invitation: {ex}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return error_response(
+            code="INTERNAL_SERVER_ERROR",
+            message="Internal server error",
+            status_code=500,
+        )
 
 
-@router.get("/invitations/{token}", response_model=InviteDto)
+@router.get("/invitations/{token}")
 def validate_invitation(
     token: str,
     principal: SecurityPrincipal = Depends(get_current_principal),
@@ -333,16 +383,24 @@ def validate_invitation(
     try:
         _ = principal  # Ensure JWT validation executes even if not used directly
         result = service.validate_invitation(token)
-        return result
+        return success_response(result)
     except ValueError as ex:
-        raise HTTPException(status_code=400, detail=str(ex))
+        return error_response(
+            code="BAD_REQUEST",
+            message=str(ex),
+            status_code=400,
+        )
     except Exception as ex:
         # Log the error in production
         print(f"Failed to validate invitation: {ex}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return error_response(
+            code="INTERNAL_SERVER_ERROR",
+            message="Internal server error",
+            status_code=500,
+        )
 
 
-@router.post("/invitations/{token}/accept", response_model=LoginResponseDto)
+@router.post("/invitations/{token}/accept")
 def accept_invitation(
     token: str,
     payload: AcceptInviteDto,
@@ -364,17 +422,25 @@ def accept_invitation(
     try:
         client_ip = get_client_ip(request)
         result = service.accept_invitation(token, payload, client_ip)
-        return result
+        return success_response(result)
     except ValueError as ex:
-        raise HTTPException(status_code=400, detail=str(ex))
+        return error_response(
+            code="BAD_REQUEST",
+            message=str(ex),
+            status_code=400,
+        )
     except Exception as ex:
         # Log the error in production
         print(f"Failed to accept invitation: {ex}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return error_response(
+            code="INTERNAL_SERVER_ERROR",
+            message="Internal server error",
+            status_code=500,
+        )
 
 
 # Password Reset Endpoints
-@router.post("/password/forgot", response_model=ForgotPasswordResponseDto)
+@router.post("/password/forgot")
 def forgot_password(
     payload: ForgotPasswordRequestDto,
     request: Request,
@@ -398,21 +464,27 @@ def forgot_password(
         _ = principal  # Authenticated context enforced
         success = service.initiate_password_reset(payload.email, client_ip)
         
-        return ForgotPasswordResponseDto(
+        return success_response(
+            ForgotPasswordResponseDto(
             message="If your email is registered, you will receive password reset instructions.",
             success=True
+            ),
+            metadata={"dispatched": success}
         )
         
     except Exception as ex:
         # Log the error in production but still return success for security
         print(f"Error in forgot password: {ex}")
-        return ForgotPasswordResponseDto(
-            message="If your email is registered, you will receive password reset instructions.",
-            success=True
+        return success_response(
+            ForgotPasswordResponseDto(
+                message="If your email is registered, you will receive password reset instructions.",
+                success=True
+            ),
+            metadata={"dispatched": False}
         )
 
 
-@router.get("/password/reset/{token}", response_model=ValidateResetTokenResponseDto)
+@router.get("/password/reset/{token}")
 def validate_reset_token(
     token: str,
     principal: SecurityPrincipal = Depends(get_current_principal),
@@ -429,17 +501,24 @@ def validate_reset_token(
     try:
         _ = principal
         result = service.validate_reset_token(token)
-        return ValidateResetTokenResponseDto(**result)
+        return success_response(ValidateResetTokenResponseDto(**result))
         
+    except ValueError as ex:
+        return error_response(
+            code="BAD_REQUEST",
+            message=str(ex),
+            status_code=400,
+        )
     except Exception as ex:
         print(f"Error validating reset token: {ex}")
-        return ValidateResetTokenResponseDto(
-            valid=False,
-            message="Token validation failed"
+        return error_response(
+            code="INTERNAL_SERVER_ERROR",
+            message="Token validation failed",
+            status_code=500,
         )
 
 
-@router.post("/password/reset", response_model=ResetPasswordResponseDto)
+@router.post("/password/reset")
 def reset_password(
     payload: ResetPasswordRequestDto,
     request: Request,
@@ -462,17 +541,24 @@ def reset_password(
         client_ip = get_client_ip(request)
         _ = principal
         result = service.reset_password(payload.token, payload.new_password, client_ip)
-        return ResetPasswordResponseDto(**result)
+        return success_response(ResetPasswordResponseDto(**result))
         
+    except ValueError as ex:
+        return error_response(
+            code="BAD_REQUEST",
+            message=str(ex),
+            status_code=400,
+        )
     except Exception as ex:
         print(f"Error resetting password: {ex}")
-        return ResetPasswordResponseDto(
-            success=False,
-            message="Password reset failed"
+        return error_response(
+            code="INTERNAL_SERVER_ERROR",
+            message="Password reset failed",
+            status_code=500,
         )
 
 
-@router.post("/password/change", response_model=ChangePasswordResponseDto)
+@router.post("/password/change")
 def change_password(
     payload: ChangePasswordRequestDto,
     request: Request,
@@ -499,13 +585,20 @@ def change_password(
             new_password=payload.new_password,
             ip_address=client_ip
         )
-        return ChangePasswordResponseDto(**result)
+        return success_response(ChangePasswordResponseDto(**result))
         
+    except ValueError as ex:
+        return error_response(
+            code="BAD_REQUEST",
+            message=str(ex),
+            status_code=400,
+        )
     except Exception as ex:
         print(f"Error changing password: {ex}")
-        return ChangePasswordResponseDto(
-            success=False,
-            message="Password change failed"
+        return error_response(
+            code="INTERNAL_SERVER_ERROR",
+            message="Password change failed",
+            status_code=500,
         )
 
 
@@ -523,17 +616,21 @@ def test_email(
         
         success = email_service.send_test_email(recipient_email)
         
-        return {
-            "status": "success" if success else "failed",
-            "message": f"Test email {'sent' if success else 'failed'} to {recipient_email}",
-            "recipient": recipient_email
-        }
+        return success_response(
+            {
+                "status": "success" if success else "failed",
+                "message": f"Test email {'sent' if success else 'failed'} to {recipient_email}",
+                "recipient": recipient_email
+            },
+            metadata={"delivered": success}
+        )
     except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Error testing email: {str(e)}",
-            "recipient": recipient_email
-        }
+        return error_response(
+            code="EMAIL_TEST_FAILED",
+            message=f"Error testing email: {str(e)}",
+            metadata={"recipient": recipient_email},
+            status_code=500,
+        )
 
 
 # Health check endpoint
@@ -541,7 +638,7 @@ def test_email(
 def health_check(principal: SecurityPrincipal = Depends(get_current_principal)):
     """Health check endpoint for auth service"""
     _ = principal
-    return {"status": "healthy", "service": "auth"}
+    return success_response({"status": "healthy", "service": "auth"})
 
 
 # TODO: Add these endpoints in future iterations:

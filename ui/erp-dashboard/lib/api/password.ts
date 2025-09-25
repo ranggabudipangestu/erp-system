@@ -5,15 +5,13 @@ import {
   ResetPasswordRequest,
   ResetPasswordResponse,
   ChangePasswordRequest,
-  ChangePasswordResponse
+  ChangePasswordResponse,
+  ApiResponse
 } from '@/types/auth';
 import { AuthService } from '@/lib/auth';
+import { AuthApiError } from '@/app/lib/authApi';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-interface ApiError {
-  detail: string;
-}
 
 class ApiClient {
   private baseURL: string;
@@ -49,19 +47,63 @@ class ApiClient {
     try {
       const response = await fetch(url, config);
       
-      // Handle non-JSON responses (like 204 No Content)
-      if (response.status === 204) {
-        return {} as T;
-      }
+      const data: any = await response.json();
+      const isWrapped = data && typeof data === 'object' && 'success' in data && 'result' in data;
 
-      const data = await response.json();
+      const isUnauthorized = response.status === 401;
 
       if (!response.ok) {
-        const error = data as ApiError;
-        throw new Error(error.detail || `HTTP ${response.status}: ${response.statusText}`);
+        if (isWrapped && data.success === false) {
+          const errorInfo: any = data.error ?? {};
+          if (isUnauthorized || errorInfo?.code === 'UNAUTHORIZED') {
+            AuthService.handleUnauthorized();
+          }
+          throw new AuthApiError(
+            errorInfo?.message || `HTTP ${response.status}: ${response.statusText}`,
+            response.status,
+            errorInfo?.code || response.status.toString(),
+            data?.traceId,
+            errorInfo?.errors || [],
+            data?.metadata || {},
+            response.statusText
+          );
+        }
+
+        if (isUnauthorized) {
+          AuthService.handleUnauthorized();
+        }
+        throw new AuthApiError(
+          data?.detail || data?.message || `HTTP ${response.status}: ${response.statusText}`,
+          response.status,
+          data?.code || response.status.toString(),
+          data?.traceId,
+          data?.errors || [],
+          data?.metadata || {},
+          response.statusText
+        );
       }
 
-      return data;
+      if (isWrapped) {
+        if (data.success === false) {
+          const errorInfo: any = data.error ?? {};
+          if (errorInfo?.code === 'UNAUTHORIZED') {
+            AuthService.handleUnauthorized();
+          }
+          throw new AuthApiError(
+            errorInfo?.message || `HTTP ${response.status}: ${response.statusText}`,
+            response.status,
+            errorInfo?.code || response.status.toString(),
+            data?.traceId,
+            errorInfo?.errors || [],
+            data?.metadata || {},
+            response.statusText
+          );
+        }
+
+        return (data as ApiResponse<T>).result;
+      }
+
+      return data as T;
     } catch (error) {
       if (error instanceof Error) {
         throw error;
