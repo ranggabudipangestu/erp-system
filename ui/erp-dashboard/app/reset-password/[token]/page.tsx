@@ -188,7 +188,7 @@ export default function ResetPasswordPage() {
                 onClick={handleBackToLogin}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-md transition-colors"
               >
-                Sign in with new password
+                Login with new password
               </button>
             </div>
 

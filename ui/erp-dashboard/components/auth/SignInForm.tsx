@@ -72,7 +72,7 @@ export default function SignInForm({ onSubmit, isLoading, requireTenantDomain = 
         <div>
           <div className="text-center mb-6">
             <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-              Sign in to your account
+              Login to your account
             </h2>
             <p className="mt-2 text-sm text-gray-600">
               Or{' '}
@@ -199,7 +199,7 @@ export default function SignInForm({ onSubmit, isLoading, requireTenantDomain = 
                         Signing in...
                       </>
                     ) : (
-                      'Sign in'
+                      'Login'
                     )}
                   </button>
                 </div>
