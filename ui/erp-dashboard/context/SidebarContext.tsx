@@ -2,14 +2,13 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
 type SidebarContextType = {
-  isExpanded: boolean;
+  isCollapsed: boolean;
   isMobileOpen: boolean;
-  isHovered: boolean;
+  isMobile: boolean;
   activeItem: string | null;
   openSubmenu: string | null;
   toggleSidebar: () => void;
   toggleMobileSidebar: () => void;
-  setIsHovered: (isHovered: boolean) => void;
   setActiveItem: (item: string | null) => void;
   toggleSubmenu: (item: string) => void;
 };
@@ -27,10 +26,9 @@ export const useSidebar = () => {
 export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
 
@@ -52,7 +50,8 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const toggleSidebar = () => {
-    setIsExpanded((prev) => !prev);
+    if (isMobile) return;
+    setIsCollapsed((prev) => !prev);
   };
 
   const toggleMobileSidebar = () => {
@@ -66,14 +65,13 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
   return (
     <SidebarContext.Provider
       value={{
-        isExpanded: isMobile ? false : isExpanded,
+        isCollapsed: isMobile ? true : isCollapsed,
         isMobileOpen,
-        isHovered,
+        isMobile,
         activeItem,
         openSubmenu,
         toggleSidebar,
         toggleMobileSidebar,
-        setIsHovered,
         setActiveItem,
         toggleSubmenu,
       }}

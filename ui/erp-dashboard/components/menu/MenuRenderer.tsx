@@ -37,7 +37,22 @@ const MenuRenderer: React.FC<MenuRendererProps> = ({
   };
 
   const shouldShowText = isExpanded || isHovered || isMobileOpen;
-  
+
+  const renderIcon = (
+    icon: string | null | undefined,
+    active: boolean,
+    depth: number,
+  ) => (
+    <span
+      className={`flex shrink-0 items-center justify-center ${
+        depth === 0 ? 'h-6 w-6' : 'h-5 w-5'
+      } ${active ? 'menu-item-icon-active' : 'menu-item-icon-inactive'}`}
+      aria-hidden="true"
+    >
+      {getIconComponent(icon)}
+    </span>
+  );
+
   // Define indent classes based on level
   const getIndentClass = (level: number) => {
     switch (level) {
@@ -51,141 +66,130 @@ const MenuRenderer: React.FC<MenuRendererProps> = ({
   
   return (
     <ul className={`flex flex-col ${level === 0 ? 'gap-4' : 'gap-2'}`}>
-      {items.map((item) => (
-        <li key={item.id}>
-          {item.children ? (
-            // Item with children - render as expandable menu
-            <div className={getIndentClass(level)}>
-              <button
-                onClick={() => onSubmenuToggle(item.id)}
-                className={`menu-item group w-full ${
-                  isItemActive(item)
-                    ? 'menu-item-active'
-                    : 'menu-item-inactive'
-                } cursor-pointer ${
-                  !shouldShowText && level === 0
-                    ? 'lg:justify-center'
-                    : 'lg:justify-start'
-                }`}
-              >
-                {item.icon && level === 0 && (
-                  <span
-                    className={`${
-                      isItemActive(item)
-                        ? 'menu-item-icon-active'
-                        : 'menu-item-icon-inactive'
-                    }`}
-                  >
-                    {getIconComponent(item.icon)}
-                  </span>
-                )}
-                
-                {shouldShowText && (
-                  <>
-                    <span className="menu-item-text">{item.name}</span>
-                    <ChevronDownIcon
-                      className={`ml-auto w-5 h-5 transition-transform duration-200 ${
-                        openSubmenus[item.id]
-                          ? 'rotate-180 text-brand-500'
-                          : ''
-                      }`}
-                    />
-                  </>
-                )}
-              </button>
+      {items.map((item) => {
+        const indentClass = getIndentClass(level);
+        const hasChildren = Array.isArray(item.children) && item.children.length > 0;
 
-              {/* Submenu */}
-              {item.children && shouldShowText && (
-                <div
-                  className={`overflow-hidden transition-all duration-300 ${
-                    openSubmenus[item.id] ? 'max-h-[1200px]' : 'max-h-0'
-                  } ${openSubmenus[item.id] ? 'overflow-y-auto pr-1' : ''}`}
+        if (hasChildren) {
+          const itemActive = isItemActive(item);
+          return (
+            <li key={item.id}>
+              <div className={indentClass}>
+                <button
+                  onClick={() => onSubmenuToggle(item.id)}
+                  className={`menu-item group w-full ${
+                    itemActive
+                      ? 'menu-item-active'
+                      : 'menu-item-inactive'
+                  } cursor-pointer ${
+                    !shouldShowText && level === 0
+                      ? 'lg:justify-center'
+                      : 'lg:justify-start'
+                  }`}
                 >
-                  <div className={`${level === 0 ? 'mt-2' : 'mt-1'}`}>
-                    <MenuRenderer
-                      items={item.children}
-                      isExpanded={isExpanded}
-                      isHovered={isHovered}
-                      isMobileOpen={isMobileOpen}
-                      openSubmenus={openSubmenus}
-                      onSubmenuToggle={onSubmenuToggle}
-                      level={level + 1}
-                    />
+                  {renderIcon(item.icon, itemActive, level)}
+
+                  {shouldShowText && (
+                    <>
+                      <span className="menu-item-text">{item.name}</span>
+                      <ChevronDownIcon
+                        className={`ml-auto w-5 h-5 transition-transform duration-200 ${
+                          openSubmenus[item.id]
+                            ? 'rotate-180 text-brand-500'
+                            : ''
+                        }`}
+                      />
+                    </>
+                  )}
+                </button>
+
+                {shouldShowText && (
+                  <div
+                    className={`overflow-hidden transition-all duration-300 ${
+                      openSubmenus[item.id] ? 'max-h-[1200px]' : 'max-h-0'
+                    } ${openSubmenus[item.id] ? 'overflow-y-auto pr-1' : ''}`}
+                  >
+                    <div className={`${level === 0 ? 'mt-2' : 'mt-1'}`}>
+                      <MenuRenderer
+                        items={item.children ?? []}
+                        isExpanded={isExpanded}
+                        isHovered={isHovered}
+                        isMobileOpen={isMobileOpen}
+                        openSubmenus={openSubmenus}
+                        onSubmenuToggle={onSubmenuToggle}
+                        level={level + 1}
+                      />
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            // Item with path - render as link
-            item.path && (
-              <div className={getIndentClass(level)}>
+                )}
+              </div>
+            </li>
+          );
+        }
+
+        if (item.path) {
+          const leafActive = isActive(item.path);
+          return (
+            <li key={item.id}>
+              <div className={indentClass}>
                 <Link
                   href={item.path}
-                  className={level > 0 ? `menu-dropdown-item ${
-                    isActive(item.path)
+                  className={level > 0 ? `group menu-dropdown-item ${
+                    leafActive
                       ? 'menu-dropdown-item-active'
                       : 'menu-dropdown-item-inactive'
                   }` : `menu-item group ${
-                    isActive(item.path)
+                    leafActive
                       ? 'menu-item-active'
                       : 'menu-item-inactive'
                   }`}
                 >
-                {item.icon && level === 0 && (
-                  <span
-                    className={`${
-                      isActive(item.path)
-                        ? 'menu-item-icon-active'
-                        : 'menu-item-icon-inactive'
-                    }`}
-                  >
-                    {getIconComponent(item.icon)}
-                  </span>
-                )}
-                
-                {shouldShowText && (
-                  <>
-                    <span className={level === 0 ? 'menu-item-text' : ''}>
-                      {item.name}
-                    </span>
-                    
-                    {/* Badges */}
-                    <span className="flex items-center gap-1 ml-auto">
-                      {item.new && (
-                        <span
-                          className={`ml-auto ${
-                            isActive(item.path) && level > 0
-                              ? 'menu-dropdown-badge-active'
-                              : level > 0
-                              ? 'menu-dropdown-badge-inactive'
-                              : 'bg-green-100 text-green-600 bg-opacity-10'
-                          } menu-dropdown-badge`}
-                        >
-                          new
-                        </span>
-                      )}
-                      {item.pro && (
-                        <span
-                          className={`ml-auto ${
-                            isActive(item.path) && level > 0
-                              ? 'menu-dropdown-badge-active'
-                              : level > 0
-                              ? 'menu-dropdown-badge-inactive'
-                              : 'bg-orange-100 text-orange-600 bg-opacity-10'
-                          } menu-dropdown-badge`}
-                        >
-                          pro
-                        </span>
-                      )}
-                    </span>
-                  </>
-                )}
-              </Link>
+                  {renderIcon(item.icon, leafActive, level)}
+
+                  {shouldShowText && (
+                    <>
+                      <span className={level === 0 ? 'menu-item-text' : ''}>
+                        {item.name}
+                      </span>
+
+                      <span className="flex items-center gap-1 ml-auto">
+                        {item.new && (
+                          <span
+                            className={`ml-auto ${
+                              leafActive && level > 0
+                                ? 'menu-dropdown-badge-active'
+                                : level > 0
+                                ? 'menu-dropdown-badge-inactive'
+                                : 'bg-green-100 text-green-600 bg-opacity-10'
+                            } menu-dropdown-badge`}
+                          >
+                            new
+                          </span>
+                        )}
+                        {item.pro && (
+                          <span
+                            className={`ml-auto ${
+                              leafActive && level > 0
+                                ? 'menu-dropdown-badge-active'
+                                : level > 0
+                                ? 'menu-dropdown-badge-inactive'
+                                : 'bg-orange-100 text-orange-600 bg-opacity-10'
+                            } menu-dropdown-badge`}
+                          >
+                            pro
+                          </span>
+                        )}
+                      </span>
+                    </>
+                  )}
+                </Link>
               </div>
-            )
-          )}
-        </li>
-      ))}
+            </li>
+          );
+        }
+
+        return null;
+      })}
     </ul>
   );
 };

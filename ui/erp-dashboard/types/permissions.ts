@@ -85,7 +85,7 @@ export interface NavigationMenuItem {
   code: string;
   name: string;
   route?: string;
-  icon?: string;
+  icon: string;
   permission_key: string;
   sort_order: number;
 }
@@ -94,7 +94,7 @@ export interface NavigationModule {
   id: string;
   code: string;
   name: string;
-  icon?: string;
+  icon: string;
   sort_order: number;
   items: NavigationMenuItem[];
 }

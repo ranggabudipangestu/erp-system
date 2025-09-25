@@ -20,7 +20,7 @@ import DynamicSidebar from '@/components/layout/DynamicSidebar';
 export default function HomePage() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  const { isCollapsed, isMobileOpen } = useSidebar();
 
   useEffect(() => {
     // Check authentication status
@@ -53,13 +53,13 @@ export default function HomePage() {
   // Dynamic class for main content margin based on sidebar state
   const mainContentMargin = isMobileOpen
     ? "ml-0"
-    : isExpanded || isHovered
-    ? "lg:ml-[290px]"
-    : "lg:ml-[90px]";
+    : isCollapsed
+    ? "lg:ml-[84px]"
+    : "lg:ml-[290px]";
 
   // User is authenticated, show dashboard with admin layout
   return (
-    <div className="min-h-screen xl:flex">
+    <div className="min-h-screen pb-16 xl:flex lg:pb-0">
       {/* Sidebar and Backdrop */}
       <AppSidebar />
       {/* <DynamicSidebar /> */}

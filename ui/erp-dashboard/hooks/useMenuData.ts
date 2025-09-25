@@ -6,7 +6,7 @@ import { NavigationModule } from '@/types/permissions';
 export interface MenuItem {
   id: string;
   name: string;
-  icon?: string;
+  icon?: string | null;
   path?: string;
   pro?: boolean;
   new?: boolean;
@@ -18,38 +18,32 @@ export interface MenuData {
   otherMenu: MenuItem[];
 }
 
-const ICON_MAP: Record<string, string> = {
-  database: 'TableIcon',
-  wallet: 'PieChartIcon',
-  boxes: 'BoxCubeIcon',
-  'shopping-cart': 'DocsIcon',
-  'trending-up': 'GridIcon',
-  factory: 'BoxCubeIcon',
-  shield: 'UserCircleIcon',
-  package: 'BoxCubeIcon',
-  'bar-chart': 'PieChartIcon',
-  'dollar-sign': 'PieChartIcon',
-};
-
-const resolveIcon = (icon?: string): string | undefined => {
-  if (!icon) return undefined;
-  const normalized = icon.toLowerCase();
-  return ICON_MAP[normalized] || 'GridIcon';
+const MODULE_ICON_MAP: Record<string, string> = {
+  master_data: 'table',
+  finance: 'dollar-sign',
+  inventory: 'package',
+  purchasing: 'shopping-cart',
+  sales: 'bar-chart',
+  manufacturing: 'factory',
+  administration: 'users',
+  permissions: 'shield',
+  reporting: 'pie-chart',
 };
 
 const transformNavigation = (navModules: NavigationModule[]): MenuData => {
   const mainMenu: MenuItem[] = navModules.map((module) => ({
     id: module.code,
     name: module.name,
-    icon: resolveIcon(module.icon),
+    icon: module.icon || MODULE_ICON_MAP[module.code] || undefined,
     children: module.items
       .filter((item) => Boolean(item.route))
       .map((item) => ({
         id: item.code,
         name: item.name,
         path: item.route!,
+        icon: item.icon,
       })),
-  })).filter((module) => module.children && module.children.length > 0);
+  })).filter((module) => (module.children?.length ?? 0) > 0);
 
   return {
     mainMenu,
