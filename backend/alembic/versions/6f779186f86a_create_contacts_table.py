@@ -17,23 +17,9 @@ branch_labels = None
 depends_on = None
 
 
-STATUS_VALUES = ("Active", "Archived")
-
 
 def upgrade() -> None:
     # Ensure a clean slate when rerunning the migration after partial failures
-    op.execute("DROP TABLE IF EXISTS contacts CASCADE")
-    op.execute("DROP TYPE IF EXISTS contact_status")
-
-    # Create the enum type using raw SQL to avoid issues with checkfirst=False
-    op.execute("CREATE TYPE contact_status AS ENUM ('Active', 'Archived')")
-
-    # Now reference the existing enum type
-    contact_status_enum = postgresql.ENUM(
-        *STATUS_VALUES,
-        name="contact_status",
-        create_type=False,  # Don't create the type, it already exists
-    )
 
     op.create_table(
         "contacts",
@@ -52,7 +38,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("'{}'::varchar[]"),
         ),
-        sa.Column("status", contact_status_enum, nullable=False, server_default="Active"),
+        # sa.Column("status", contact_status_enum, nullable=True, server_default="Active"),
         sa.Column("credit_limit", sa.Numeric(precision=18, scale=2), nullable=True),
         sa.Column("distribution_channel", sa.String(length=100), nullable=True),
         sa.Column("pic_name", sa.String(length=150), nullable=True),
@@ -63,7 +49,7 @@ def upgrade() -> None:
         sa.Column("department", sa.String(length=100), nullable=True),
         sa.Column("job_title", sa.String(length=100), nullable=True),
         sa.Column("employment_status", sa.String(length=50), nullable=True),
-        sa.Column("archived_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_by", sa.String(length=100), nullable=False),
@@ -76,4 +62,3 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("contacts")
-    op.execute("DROP TYPE IF EXISTS contact_status")

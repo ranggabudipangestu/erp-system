@@ -14,7 +14,7 @@ from app.common.api_response import success_response, error_response
 from app.core.db import session_scope
 from app.core.security import require_permissions, SecurityPrincipal
 
-from .models import Contact, ContactStatus
+from .models import Contact
 from .repository import ContactRepository
 from .service import ContactService, _normalize_roles
 from .schemas import ContactDto, CreateContactDto, UpdateContactDto, ContactListResponse, ContactImportSummary
@@ -41,19 +41,28 @@ def _tenant_id(principal: SecurityPrincipal) -> UUID:
 def list_contacts(
     search: Optional[str] = Query(None, description="Search term for code, name, email, or phone"),
     roles: Optional[List[str]] = Query(None, description="Filter by one or more roles"),
-    status: Optional[ContactStatus] = Query(None, description="Filter by status"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
     principal: SecurityPrincipal = Depends(require_permissions(["contacts.view"])),
     service: ContactService = Depends(get_service),
 ):
     payload: ContactListResponse = service.list_contacts(
         tenant_id=_tenant_id(principal),
         roles=roles,
-        status=status,
         search=search,
+        page=page,
+        page_size=page_size,
     )
     return success_response(
         [item.model_dump() for item in payload.items],
-        metadata={"total": payload.total},
+        metadata={
+            "total": payload.total,
+            "page": payload.page,
+            "pageSize": payload.page_size,
+            "totalPages": payload.total_pages,
+            "hasNext": payload.page < payload.total_pages,
+            "hasPrev": payload.page > 1,
+        },
     )
 
 
@@ -86,7 +95,7 @@ def create_contact(
 def update_contact(
     contact_id: UUID,
     payload: UpdateContactDto,
-    principal: SecurityPrincipal = Depends(require_permissions(["contacts.update"])),
+    principal: SecurityPrincipal = Depends(require_permissions(["contacts.edit"])),
     service: ContactService = Depends(get_service),
 ):
     try:
@@ -108,7 +117,7 @@ def archive_contact(
     archived = service.archive_contact(_tenant_id(principal), contact_id)
     if not archived:
         return error_response("NOT_FOUND", "Contact not found", status_code=404)
-    return success_response({"id": str(contact_id), "status": ContactStatus.ARCHIVED.value})
+    return success_response({"id": str(contact_id)})
 
 
 def _parse_decimal(value: str | None) -> Decimal | None:
@@ -141,12 +150,7 @@ def _contact_from_row(
     if not roles:
         raise ValueError("At least one role is required (column 'roles')")
 
-    status_value = row.get("status") or ContactStatus.ACTIVE.value
-    try:
-        status = ContactStatus(status_value)
-    except ValueError as exc:
-        raise ValueError(f"Invalid status '{status_value}'") from exc
-
+   
     contact = Contact(
         id=uuid4(),
         tenant_id=tenant_id,
@@ -158,7 +162,6 @@ def _contact_from_row(
         address_shipping=row.get("address_shipping") or None,
         tax_number=(row.get("tax_number") or "").strip() or None,
         roles=roles,
-        status=status,
         credit_limit=_parse_decimal(row.get("credit_limit")),
         distribution_channel=row.get("distribution_channel") or None,
         pic_name=row.get("pic_name") or None,
@@ -172,7 +175,6 @@ def _contact_from_row(
         created_by=actor,
         updated_by=actor,
         updated_at=datetime.utcnow(),
-        archived_at=datetime.utcnow() if status == ContactStatus.ARCHIVED else None,
     )
 
     if not contact.code:
@@ -235,14 +237,12 @@ async def import_contacts(
 def export_contacts(
     search: Optional[str] = Query(None),
     roles: Optional[List[str]] = Query(None),
-    status: Optional[ContactStatus] = Query(None),
     principal: SecurityPrincipal = Depends(require_permissions(["contacts.view"])),
     service: ContactService = Depends(get_service),
 ):
     contacts = service.export_contacts(
         tenant_id=_tenant_id(principal),
         roles=roles,
-        status=status,
         search=search,
     )
 

@@ -5,9 +5,7 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator
-
-from .models import ContactStatus
+from pydantic import BaseModel, Field, validator, field_validator
 
 
 VALID_ROLES = {"Customer", "Supplier", "Employee"}
@@ -22,7 +20,6 @@ class ContactBase(BaseModel):
     address_shipping: Optional[str] = None
     tax_number: Optional[str] = Field(None, max_length=50)
     roles: List[str]
-    status: ContactStatus = ContactStatus.ACTIVE
 
     credit_limit: Optional[Decimal] = None
     distribution_channel: Optional[str] = Field(None, max_length=100)
@@ -47,7 +44,7 @@ class ContactBase(BaseModel):
                 raise ValueError(f"Invalid role '{role}'. Allowed values: {', '.join(sorted(VALID_ROLES))}")
             normalized.append(role)
         return normalized
-
+    
 
 class CreateContactDto(ContactBase):
     created_by: str = Field(..., max_length=100)
@@ -73,6 +70,9 @@ class ContactDto(ContactBase):
 class ContactListResponse(BaseModel):
     items: List[ContactDto]
     total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class ContactImportSummary(BaseModel):
@@ -80,4 +80,3 @@ class ContactImportSummary(BaseModel):
     updated: int = 0
     skipped: int = 0
     errors: List[str] = Field(default_factory=list)
-

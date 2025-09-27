@@ -20,11 +20,6 @@ from sqlalchemy import func
 from app.core.db import Base
 
 
-class ContactStatus(str, Enum):
-    ACTIVE = "Active"
-    ARCHIVED = "Archived"
-
-
 class Contact(Base):
     __tablename__ = "contacts"
     __table_args__ = (
@@ -43,9 +38,6 @@ class Contact(Base):
     tax_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     roles: Mapped[list[str]] = mapped_column(ARRAY(String(20)), nullable=False, default=list)
-    status: Mapped[ContactStatus] = mapped_column(
-        SAEnum(ContactStatus, name="contact_status"), nullable=False, default=ContactStatus.ACTIVE
-    )
 
     credit_limit: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)
     distribution_channel: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -60,7 +52,7 @@ class Contact(Base):
     job_title: Mapped[str | None] = mapped_column(String(100), nullable=True)
     employment_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

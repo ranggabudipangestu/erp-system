@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from math import ceil
 from uuid import UUID, uuid4
 from typing import Iterable, Sequence
 
-from .models import Contact, ContactStatus
+from .models import Contact
 from .repository import ContactRepository
 from .schemas import (
     ContactDto,
@@ -33,17 +34,31 @@ class ContactService:
         tenant_id: UUID,
         *,
         roles: Sequence[str] | None = None,
-        status: ContactStatus | None = None,
         search: str | None = None,
+        page: int = 1,
+        page_size: int = 25,
     ) -> ContactListResponse:
-        entities = self.repository.list(
+        page = max(page, 1)
+        page_size = max(page_size, 1)
+        offset = (page - 1) * page_size
+
+        entities, total = self.repository.list(
             tenant_id,
             roles=roles,
-            status=status,
             search=search,
+            limit=page_size,
+            offset=offset,
         )
         items = [_map_to_dto(entity) for entity in entities]
-        return ContactListResponse(items=items, total=len(items))
+        total_pages = ceil(total / page_size) if total else 1
+
+        return ContactListResponse(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        )
 
     def get_contact(self, tenant_id: UUID, contact_id: UUID) -> ContactDto | None:
         entity = self.repository.get_by_id(tenant_id, contact_id)
@@ -64,7 +79,6 @@ class ContactService:
             address_shipping=payload.address_shipping,
             tax_number=payload.tax_number,
             roles=_normalize_roles(payload.roles),
-            status=payload.status,
             credit_limit=payload.credit_limit,
             distribution_channel=payload.distribution_channel,
             pic_name=payload.pic_name,
@@ -97,7 +111,6 @@ class ContactService:
         entity.address_shipping = payload.address_shipping
         entity.tax_number = payload.tax_number
         entity.roles = _normalize_roles(payload.roles)
-        entity.status = payload.status
         entity.credit_limit = payload.credit_limit
         entity.distribution_channel = payload.distribution_channel
         entity.pic_name = payload.pic_name
@@ -110,10 +123,7 @@ class ContactService:
         entity.employment_status = payload.employment_status
         entity.updated_by = payload.updated_by
         entity.updated_at = datetime.utcnow()
-        if entity.status == ContactStatus.ARCHIVED and not entity.archived_at:
-            entity.archived_at = datetime.utcnow()
-        elif entity.status == ContactStatus.ACTIVE:
-            entity.archived_at = None
+
 
         updated = self.repository.update(entity)
         return _map_to_dto(updated)
@@ -135,8 +145,13 @@ class ContactService:
         tenant_id: UUID,
         *,
         roles: Sequence[str] | None = None,
-        status: ContactStatus | None = None,
         search: str | None = None,
     ) -> list[ContactDto]:
-        entities = self.repository.list(tenant_id, roles=roles, status=status, search=search)
+        entities, _ = self.repository.list(
+            tenant_id,
+            roles=roles,
+            search=search,
+            limit=None,
+            offset=None,
+        )
         return [_map_to_dto(entity) for entity in entities]

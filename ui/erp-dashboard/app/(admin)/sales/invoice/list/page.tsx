@@ -217,18 +217,6 @@ export default function InvoiceList() {
       className: 'min-w-[120px]'
     },
     {
-      key: 'status',
-      title: 'Status',
-      render: (_, record) => (
-        <StatusBadge 
-          status={record.status} 
-          variant={getStatusVariant(record.status) as any} 
-        />
-      ),
-      sortable: true,
-      className: 'min-w-[100px]'
-    },
-    {
       key: 'actions',
       title: '',
       render: (_, record) => {

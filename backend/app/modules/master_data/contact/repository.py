@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import select, or_, func, update as sa_update
 from sqlalchemy.orm import Session
 
-from .models import Contact, ContactStatus
+from .models import Contact
 
 
 class ContactRepository:
@@ -16,18 +16,16 @@ class ContactRepository:
     def _base_query(self, tenant_id: UUID):
         return select(Contact).where(Contact.tenant_id == tenant_id)
 
-    def list(
+    def _filtered_query(
         self,
         tenant_id: UUID,
         *,
         roles: Sequence[str] | None = None,
-        status: ContactStatus | None = None,
         search: str | None = None,
-    ) -> list[Contact]:
+    ):
         stmt = self._base_query(tenant_id)
 
-        if status:
-            stmt = stmt.where(Contact.status == status)
+        stmt = stmt.where(Contact.deleted_at.is_(None))
 
         if roles:
             for role in roles:
@@ -44,9 +42,34 @@ class ContactRepository:
                 )
             )
 
-        stmt = stmt.order_by(Contact.name.asc())
-        result = self.session.execute(stmt).scalars().all()
-        return list(result)
+        return stmt
+
+    def list(
+        self,
+        tenant_id: UUID,
+        *,
+        roles: Sequence[str] | None = None,
+        search: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> tuple[list[Contact], int]:
+        filtered = self._filtered_query(
+            tenant_id,
+            roles=roles,
+            search=search,
+        )
+
+        count_stmt = filtered.with_only_columns(func.count()).order_by(None)
+        total = self.session.execute(count_stmt).scalar_one()
+
+        data_stmt = filtered.order_by(Contact.name.asc())
+        if limit is not None:
+            data_stmt = data_stmt.limit(limit)
+        if offset:
+            data_stmt = data_stmt.offset(offset)
+
+        result = self.session.execute(data_stmt).scalars().all()
+        return list(result), total
 
     def get_by_id(self, tenant_id: UUID, contact_id: UUID) -> Contact | None:
         stmt = self._base_query(tenant_id).where(Contact.id == contact_id)
@@ -72,14 +95,8 @@ class ContactRepository:
         return contact
 
     def archive(self, tenant_id: UUID, contact_id: UUID) -> bool:
-        stmt = (
-            sa_update(Contact)
-            .where(Contact.tenant_id == tenant_id, Contact.id == contact_id)
-            .values(status=ContactStatus.ARCHIVED, archived_at=func.now())
-        )
-        result = self.session.execute(stmt)
-        self.session.flush()
-        return result.rowcount > 0
+        
+        return True
 
     def bulk_upsert(self, tenant_id: UUID, contacts: Iterable[Contact]) -> tuple[int, int]:
         created = 0
@@ -120,4 +137,3 @@ class ContactRepository:
 
         self.session.flush()
         return created, updated
-

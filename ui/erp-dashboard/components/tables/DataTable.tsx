@@ -30,6 +30,7 @@ export interface DataTableProps<T extends Record<string, any> = any> {
     onChange: (page: number, pageSize: number) => void;
     showSizeChanger?: boolean; // Allow changing page size
     pageSizeOptions?: number[]; // Available page size options
+    serverSide?: boolean; // When true, component will not slice data locally
   };
   showHeader?: boolean;
   bordered?: boolean;
@@ -65,6 +66,7 @@ export default function DataTable<T extends Record<string, any> = any>({
 
   const sortedAndPaginatedData = React.useMemo(() => {
     let processedData = [...data];
+    const isServerSide = Boolean(pagination?.serverSide);
 
     // Apply sorting
     if (sortField) {
@@ -88,7 +90,7 @@ export default function DataTable<T extends Record<string, any> = any>({
     }
 
     // Apply pagination if enabled
-    if (pagination) {
+    if (pagination && !isServerSide && pagination.total == null) {
       const startIndex = (pagination.current - 1) * pagination.pageSize;
       const endIndex = startIndex + pagination.pageSize;
       processedData = processedData.slice(startIndex, endIndex);
@@ -205,117 +207,117 @@ export default function DataTable<T extends Record<string, any> = any>({
         </Table>
       </div>
       
-      {pagination && (
-        <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-          <div className="flex-1 flex justify-between sm:hidden">
-            <button
-              onClick={() => pagination.onChange(Math.max(1, pagination.current - 1), pagination.pageSize)}
-              disabled={pagination.current <= 1}
-              className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => pagination.onChange(
-                Math.min(Math.ceil(data.length / pagination.pageSize), pagination.current + 1), 
-                pagination.pageSize
-              )}
-              disabled={pagination.current >= Math.ceil(data.length / pagination.pageSize)}
-              className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Next
-            </button>
-          </div>
-          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-4">
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                Showing{' '}
-                <span className="font-medium">
-                  {data.length === 0 ? 0 : (pagination.current - 1) * pagination.pageSize + 1}
-                </span>{' '}
-                to{' '}
-                <span className="font-medium">
-                  {Math.min(pagination.current * pagination.pageSize, data.length)}
-                </span>{' '}
-                of{' '}
-                <span className="font-medium">{data.length}</span> results
-              </p>
-              
-              {pagination.showSizeChanger && (
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Show:</span>
-                  <select
-                    value={pagination.pageSize}
-                    onChange={(e) => pagination.onChange(1, Number(e.target.value))}
-                    className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      {pagination && (() => {
+        const totalItems = pagination.total ?? data.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / pagination.pageSize));
+        const startItem = totalItems === 0 ? 0 : (pagination.current - 1) * pagination.pageSize + 1;
+        const endItem = Math.min(pagination.current * pagination.pageSize, totalItems);
+        const goToPrev = () => pagination.onChange(Math.max(1, pagination.current - 1), pagination.pageSize);
+        const goToNext = () => pagination.onChange(Math.min(totalPages, pagination.current + 1), pagination.pageSize);
+
+        return (
+          <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+            <div className="flex-1 flex justify-between sm:hidden">
+              <button
+                onClick={goToPrev}
+                disabled={pagination.current <= 1}
+                className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Previous
+              </button>
+              <button
+                onClick={goToNext}
+                disabled={pagination.current >= totalPages}
+                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+              </button>
+            </div>
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div className="flex items-center space-x-4">
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  Showing{' '}
+                  <span className="font-medium">{startItem}</span>{' '}
+                  to{' '}
+                  <span className="font-medium">{endItem}</span>{' '}
+                  of{' '}
+                  <span className="font-medium">{totalItems}</span> results
+                </p>
+
+                {pagination.showSizeChanger && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Show:</span>
+                    <select
+                      value={pagination.pageSize}
+                      onChange={(e) => pagination.onChange(1, Number(e.target.value))}
+                      className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {(pagination.pageSizeOptions || [10, 20, 50, 100]).map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">per page</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={goToPrev}
+                    disabled={pagination.current <= 1}
+                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {(pagination.pageSizeOptions || [10, 20, 50, 100]).map(size => (
-                      <option key={size} value={size}>{size}</option>
-                    ))}
-                  </select>
-                  <span className="text-sm text-gray-700 dark:text-gray-300">per page</span>
-                </div>
-              )}
-            </div>
-            <div>
-              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                <button
-                  onClick={() => pagination.onChange(Math.max(1, pagination.current - 1), pagination.pageSize)}
-                  disabled={pagination.current <= 1}
-                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <span className="sr-only">Previous</span>
-                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </button>
+                    <span className="sr-only">Previous</span>
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
 
-                {(() => {
-                  const totalPages = Math.ceil(data.length / pagination.pageSize);
-                  const maxVisiblePages = 5;
-                  let startPage = Math.max(1, pagination.current - Math.floor(maxVisiblePages / 2));
-                  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-                  
-                  if (endPage - startPage + 1 < maxVisiblePages) {
-                    startPage = Math.max(1, endPage - maxVisiblePages + 1);
-                  }
+                  {(() => {
+                    const maxVisiblePages = 5;
+                    let startPage = Math.max(1, pagination.current - Math.floor(maxVisiblePages / 2));
+                    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
 
-                  return Array.from({ length: endPage - startPage + 1 }, (_, i) => {
-                    const page = startPage + i;
-                    return (
-                      <button
-                        key={page}
-                        onClick={() => pagination.onChange(page, pagination.pageSize)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-colors ${
-                          page === pagination.current
-                            ? 'z-10 bg-blue-50 dark:bg-blue-900 border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-200'
-                            : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    );
-                  });
-                })()}
+                    if (endPage - startPage + 1 < maxVisiblePages) {
+                      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                    }
 
-                <button
-                  onClick={() => pagination.onChange(
-                    Math.min(Math.ceil(data.length / pagination.pageSize), pagination.current + 1), 
-                    pagination.pageSize
-                  )}
-                  disabled={pagination.current >= Math.ceil(data.length / pagination.pageSize)}
-                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <span className="sr-only">Next</span>
-                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </nav>
+                    return Array.from({ length: endPage - startPage + 1 }, (_, i) => {
+                      const page = startPage + i;
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => pagination.onChange(page, pagination.pageSize)}
+                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-colors ${
+                            page === pagination.current
+                              ? 'z-10 bg-blue-50 dark:bg-blue-900 border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-200'
+                              : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    });
+                  })()}
+
+                  <button
+                    onClick={goToNext}
+                    disabled={pagination.current >= totalPages}
+                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <span className="sr-only">Next</span>
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </nav>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
