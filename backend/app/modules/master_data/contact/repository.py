@@ -95,7 +95,11 @@ class ContactRepository:
         return contact
 
     def archive(self, tenant_id: UUID, contact_id: UUID) -> bool:
-        
+        self.session.execute(
+            sa_update(Contact)
+            .where(Contact.tenant_id == tenant_id, Contact.id == contact_id, Contact.deleted_at.is_(None))
+            .values(deleted_at=func.now())
+        )
         return True
 
     def bulk_upsert(self, tenant_id: UUID, contacts: Iterable[Contact]) -> tuple[int, int]:
