@@ -36,13 +36,11 @@ const ProtectedPermissionRoute: React.FC<ProtectedPermissionRouteProps> = ({
     }
     
     // Redirect to specified route
-    router.push(redirectTo);
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="text-red-600 text-lg font-semibold">Access Denied</div>
           <div className="text-gray-600 mt-2">You don't have permission to access this page.</div>
-          <div className="text-gray-500 text-sm mt-1">Redirecting...</div>
         </div>
       </div>
     );

@@ -5,18 +5,16 @@ import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { logout as logoutApi } from "@/lib/api/auth";
 import { AuthService } from "@/lib/auth";
+import { UserIcon } from "lucide-react";
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [userName, setUserName] = useState<string>(() => {
-    if (typeof window === "undefined") return "User";
-    return AuthService.getCurrentUser()?.name || "User";
-  });
-  const [userEmail, setUserEmail] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return AuthService.getCurrentUser()?.email || "";
-  });
+
+  const [userName, setUserName] = useState<string>("User");
+  const [userEmail, setUserEmail] = useState<string>("");
+
+
   const router = useRouter();
 
   useEffect(() => {
@@ -89,6 +87,7 @@ export default function UserDropdown() {
         className="absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
       >
         <div>
+          <UserIcon />
           <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
             {userName}
           </span>

@@ -154,4 +154,5 @@ class ContactService:
             limit=None,
             offset=None,
         )
+    
         return [_map_to_dto(entity) for entity in entities]

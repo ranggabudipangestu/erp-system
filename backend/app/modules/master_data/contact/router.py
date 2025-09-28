@@ -18,9 +18,12 @@ from .models import Contact
 from .repository import ContactRepository
 from .service import ContactService, _normalize_roles
 from .schemas import ContactDto, CreateContactDto, UpdateContactDto, ContactListResponse, ContactImportSummary
-
+import logging
 
 router = APIRouter()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def get_session():
@@ -65,6 +68,81 @@ def list_contacts(
         },
     )
 
+@router.get("/export")
+def export_contacts(
+    search: Optional[str] = Query(None),
+    roles: Optional[List[str]] = Query(None),
+    principal: SecurityPrincipal = Depends(require_permissions(["contacts.view"])),
+    service: ContactService = Depends(get_service),
+):
+    try:
+        contacts = service.export_contacts(
+            tenant_id=_tenant_id(principal),
+            roles=roles,
+            search=search,
+        )
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        writer.writerow([
+            "code",
+            "name",
+            "email",
+            "phone",
+            "address_billing",
+            "address_shipping",
+            "tax_number",
+            "roles",
+            "credit_limit",
+            "distribution_channel",
+            "pic_name",
+            "bank_account_number",
+            "payment_terms",
+            "sales_contact_name",
+            "employee_id",
+            "department",
+            "job_title",
+            "employment_status",
+            "created_at",
+            "updated_at",
+        ])
+
+        for contact in contacts:
+            data = contact.model_dump()
+            writer.writerow([
+                data["code"],
+                data["name"],
+                data.get("email") or "",
+                data.get("phone") or "",
+                data.get("address_billing") or "",
+                data.get("address_shipping") or "",
+                data.get("tax_number") or "",
+                "|".join(data.get("roles", [])),
+                data.get("credit_limit") or "",
+                data.get("distribution_channel") or "",
+                data.get("pic_name") or "",
+                data.get("bank_account_number") or "",
+                data.get("payment_terms") or "",
+                data.get("sales_contact_name") or "",
+                data.get("employee_id") or "",
+                data.get("department") or "",
+                data.get("job_title") or "",
+                data.get("employment_status") or "",
+                data.get("created_at"),
+                data.get("updated_at") or "",
+            ])
+
+        output.seek(0)
+        filename = f"contacts_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+        headers = {"Content-Disposition": f"attachment; filename={filename}"}
+        return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers=headers)
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if "not found" in message.lower() else 400
+        code = "NOT_FOUND" if status_code == 404 else "VALIDATION_ERROR"
+        return error_response(code, message, status_code=status_code)
+    
 
 @router.get("/{contact_id}")
 def get_contact(
@@ -188,7 +266,7 @@ def _contact_from_row(
 @router.post("/import")
 async def import_contacts(
     file: UploadFile,
-    principal: SecurityPrincipal = Depends(require_permissions(["contacts.create", "contacts.update"])),
+    principal: SecurityPrincipal = Depends(require_permissions(["contacts.create", "contacts.edit"])),
     service: ContactService = Depends(get_service),
 ):
     if file.content_type not in {"text/csv", "application/vnd.ms-excel", "application/csv"}:
@@ -231,75 +309,4 @@ async def import_contacts(
             "errors": len(summary.errors),
         },
     )
-
-
-@router.get("/export")
-def export_contacts(
-    search: Optional[str] = Query(None),
-    roles: Optional[List[str]] = Query(None),
-    principal: SecurityPrincipal = Depends(require_permissions(["contacts.view"])),
-    service: ContactService = Depends(get_service),
-):
-    contacts = service.export_contacts(
-        tenant_id=_tenant_id(principal),
-        roles=roles,
-        search=search,
-    )
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-
-    writer.writerow([
-        "code",
-        "name",
-        "email",
-        "phone",
-        "address_billing",
-        "address_shipping",
-        "tax_number",
-        "roles",
-        "status",
-        "credit_limit",
-        "distribution_channel",
-        "pic_name",
-        "bank_account_number",
-        "payment_terms",
-        "sales_contact_name",
-        "employee_id",
-        "department",
-        "job_title",
-        "employment_status",
-        "created_at",
-        "updated_at",
-    ])
-
-    for contact in contacts:
-        data = contact.model_dump()
-        writer.writerow([
-            data["code"],
-            data["name"],
-            data.get("email") or "",
-            data.get("phone") or "",
-            data.get("address_billing") or "",
-            data.get("address_shipping") or "",
-            data.get("tax_number") or "",
-            "|".join(data.get("roles", [])),
-            data["status"],
-            data.get("credit_limit") or "",
-            data.get("distribution_channel") or "",
-            data.get("pic_name") or "",
-            data.get("bank_account_number") or "",
-            data.get("payment_terms") or "",
-            data.get("sales_contact_name") or "",
-            data.get("employee_id") or "",
-            data.get("department") or "",
-            data.get("job_title") or "",
-            data.get("employment_status") or "",
-            data.get("created_at"),
-            data.get("updated_at") or "",
-        ])
-
-    output.seek(0)
-    filename = f"contacts_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
-    headers = {"Content-Disposition": f"attachment; filename={filename}"}
-    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers=headers)
+    
