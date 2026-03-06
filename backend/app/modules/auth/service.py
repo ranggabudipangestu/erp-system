@@ -17,6 +17,8 @@ from .repository import (
     AuditLogRepository
 )
 from app.modules.permissions.menu_definitions import ALL_MENU_PERMISSION_KEYS
+from app.modules.master_data.chart_of_accounts.repository import ChartOfAccountRepository
+from app.modules.master_data.chart_of_accounts.service import ChartOfAccountService
 from .auth_service import AuthService
 from .models import Tenant, User, UserTenant, Role, Invite, AuthToken, AuditLog
 from .schemas import (
@@ -143,8 +145,9 @@ def map_invite_to_dto(entity: Invite) -> InviteDto:
 class TenantProvisioningService:
     """Service responsible for tenant provisioning and setup"""
     
-    def __init__(self, role_repo: RoleRepository):
+    def __init__(self, role_repo: RoleRepository, coa_repo: ChartOfAccountRepository = None):
         self.role_repo = role_repo
+        self.coa_repo = coa_repo
 
     def create_default_roles(self, tenant_id: UUID) -> List[Role]:
         """Create default roles for a new tenant based on RBAC matrix"""
@@ -212,6 +215,13 @@ class TenantProvisioningService:
 
         return self.role_repo.create_many(roles)
 
+    def create_default_coa(self, tenant_id: UUID) -> None:
+        """Seed default Chart of Accounts for a new tenant."""
+        if not self.coa_repo:
+            return
+        coa_service = ChartOfAccountService(self.coa_repo)
+        coa_service.seed_default_coa(tenant_id=tenant_id, created_by="system")
+
     def setup_tenant_settings(self, tenant: Tenant, locale: str, currency: str, timezone: str) -> Tenant:
         """Setup initial tenant settings"""
         settings = {
@@ -233,7 +243,8 @@ class SignupService:
         role_repo: RoleRepository,
         audit_repo: AuditLogRepository,
         auth_token_repo: AuthTokenRepository,
-        provisioning_service: TenantProvisioningService
+        provisioning_service: TenantProvisioningService,
+        coa_repo: ChartOfAccountRepository = None
     ):
         self.tenant_repo = tenant_repo
         self.user_repo = user_repo
@@ -242,6 +253,7 @@ class SignupService:
         self.audit_repo = audit_repo
         self.auth_token_repo = auth_token_repo
         self.provisioning_service = provisioning_service
+        self.coa_repo = coa_repo
         # Use TokenService directly for token generation during signup
         from .token_service import TokenService
         self.token_service = TokenService(auth_token_repo)
@@ -304,6 +316,11 @@ class SignupService:
 
         # Provision default roles for tenant
         self.provisioning_service.create_default_roles(tenant_id)
+
+        # Provision default Chart of Accounts
+        if self.coa_repo:
+            self.provisioning_service.coa_repo = self.coa_repo
+            self.provisioning_service.create_default_coa(tenant_id)
 
         # Create user-tenant relationship with owner role
         user_tenant = UserTenant(

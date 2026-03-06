@@ -45,6 +45,7 @@ class Contact(Base):
 
     bank_account_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     payment_terms: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    payment_term_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("payment_terms.id"), nullable=True)
     sales_contact_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
 
     employee_id: Mapped[str | None] = mapped_column(String(100), nullable=True)

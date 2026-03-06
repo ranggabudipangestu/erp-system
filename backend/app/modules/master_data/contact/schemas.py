@@ -27,6 +27,7 @@ class ContactBase(BaseModel):
 
     bank_account_number: Optional[str] = Field(None, max_length=100)
     payment_terms: Optional[str] = Field(None, max_length=100)
+    payment_term_id: Optional[UUID] = None
     sales_contact_name: Optional[str] = Field(None, max_length=150)
 
     employee_id: Optional[str] = Field(None, max_length=100)

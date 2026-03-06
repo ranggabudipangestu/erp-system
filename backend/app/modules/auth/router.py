@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from app.core.db import session_scope
 from app.core.security import SecurityPrincipal, get_current_principal
 from app.common.api_response import success_response, error_response
+from app.modules.master_data.chart_of_accounts.repository import ChartOfAccountRepository
 from .repository import (
     TenantRepository, 
     UserRepository, 
@@ -61,13 +62,14 @@ def get_repositories(session=Depends(get_session)):
         'role_repo': RoleRepository(session),
         'invite_repo': InviteRepository(session),
         'auth_token_repo': AuthTokenRepository(session),
-        'audit_repo': AuditLogRepository(session)
+        'audit_repo': AuditLogRepository(session),
+        'coa_repo': ChartOfAccountRepository(session),
     }
 
 
 def get_signup_service(repos=Depends(get_repositories)) -> SignupService:
     """Get signup service with all dependencies"""
-    provisioning_service = TenantProvisioningService(repos['role_repo'])
+    provisioning_service = TenantProvisioningService(repos['role_repo'], coa_repo=repos['coa_repo'])
     return SignupService(
         tenant_repo=repos['tenant_repo'],
         user_repo=repos['user_repo'],
@@ -75,7 +77,8 @@ def get_signup_service(repos=Depends(get_repositories)) -> SignupService:
         role_repo=repos['role_repo'],
         audit_repo=repos['audit_repo'],
         auth_token_repo=repos['auth_token_repo'],
-        provisioning_service=provisioning_service
+        provisioning_service=provisioning_service,
+        coa_repo=repos['coa_repo'],
     )
 
 

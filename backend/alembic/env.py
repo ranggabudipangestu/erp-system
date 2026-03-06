@@ -20,6 +20,7 @@ from app.core.db import Base  # noqa: E402
 import app.modules.master_data.product.models  # noqa: F401,E402
 import app.modules.reporting.models  # noqa: F401,E402
 import app.modules.auth.models  # noqa: F401,E402
+import app.modules.permissions.models  # noqa: F401,E402
 
 
 # this is the Alembic Config object, which provides
@@ -86,4 +87,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-

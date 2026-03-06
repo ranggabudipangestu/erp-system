@@ -13,6 +13,25 @@
         }
       ]
     },
+    {
+      "id": "master-data",
+      "name": "Master Data",
+      "icon": "DatabaseIcon",
+      "children": [
+        {
+          "id": "contacts",
+          "name": "Contacts",
+          "path": "/master-data/contacts",
+          "pro": false
+        },
+        {
+          "id": "payment-terms",
+          "name": "Payment Terms",
+          "path": "/master-data/payment-terms",
+          "pro": false
+        }
+      ]
+    },
      {
       "id": "user-management",
       "name": "User Management",

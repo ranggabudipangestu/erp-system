@@ -4,13 +4,15 @@ SHELL := /bin/bash
 BACKEND_DIR := backend
 FRONTEND_DIR := ui/erp-dashboard
 
-.PHONY: help install mig-add migrate run dev dev-frontend docker-up docker-down docker-logs docker-migrate docker-revision weasyprint-setup-macos weasyprint-setup-ubuntu weasyprint-check
+.PHONY: help install mig-add migrate seed-coa seed-coa-dry run dev dev-frontend docker-up docker-down docker-logs docker-migrate docker-revision weasyprint-setup-macos weasyprint-setup-ubuntu weasyprint-check
 
 help: ## Show this help
 	@echo "Available targets:"
 	@echo "  install           - Install backend dependencies"
 	@echo "  migration-add MSG=...   - Create new Alembic migration (autogenerate)"
 	@echo "  migrate           - Apply DB migrations (upgrade head)"
+	@echo "  seed-coa          - Seed default CoA untuk semua tenant yang belum punya akun"
+	@echo "  seed-coa-dry      - Preview tenant yang akan di-seed (tanpa menulis ke DB)"
 	@echo "  run               - Run backend (applies migrations first)"
 	@echo "  dev               - Alias for run"
 	@echo "  docker-up         - Start services with Docker Compose"
@@ -31,6 +33,12 @@ migration-add: ## Create new Alembic migration (autogenerate); usage: make migra
 
 migrate: ## Apply DB migrations (upgrade head)
 	cd $(BACKEND_DIR) && alembic upgrade head
+
+seed-coa: ## Seed default CoA untuk tenant yang belum punya akun
+	cd $(BACKEND_DIR) && python scripts/seed_default_coa.py
+
+seed-coa-dry: ## Preview tenant yang akan di-seed (tanpa mengubah DB)
+	cd $(BACKEND_DIR) && python scripts/seed_default_coa.py --dry-run
 
 run: ## Run backend locally (applies migrations first)
 	cd $(BACKEND_DIR) && bash scripts/start.sh
