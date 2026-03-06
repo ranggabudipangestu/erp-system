@@ -18,6 +18,10 @@ from app.core.db import Base  # noqa: E402
 
 # Import model modules so that they are registered on Base.metadata for autogenerate
 import app.modules.master_data.product.models  # noqa: F401,E402
+import app.modules.master_data.contact.models  # noqa: F401,E402
+import app.modules.master_data.chart_of_accounts.models  # noqa: F401,E402
+import app.modules.master_data.payment_terms.models  # noqa: F401,E402
+import app.modules.master_data.units.models  # noqa: F401,E402
 import app.modules.reporting.models  # noqa: F401,E402
 import app.modules.auth.models  # noqa: F401,E402
 import app.modules.permissions.models  # noqa: F401,E402
