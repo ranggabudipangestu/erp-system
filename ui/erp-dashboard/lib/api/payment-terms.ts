@@ -1,19 +1,21 @@
-import { AuthService } from '@/lib/auth';
+import { AuthService } from "@/lib/auth";
 import type {
   PaymentTermCreateRequest,
   PaymentTermDto,
   PaymentTermListParams,
   PaymentTermListResponse,
   PaymentTermUpdateRequest,
-} from '@/types/payment-terms';
-import type { ApiResponse } from '@/types/auth';
+} from "@/types/payment-terms";
+import type { ApiResponse } from "@/types/auth";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-const buildQueryString = (params: Record<string, string | string[] | undefined | null>) => {
+const buildQueryString = (
+  params: Record<string, string | string[] | undefined | null>,
+) => {
   const searchParams = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') {
+    if (value === undefined || value === null || value === "") {
       return;
     }
     if (Array.isArray(value)) {
@@ -23,7 +25,7 @@ const buildQueryString = (params: Record<string, string | string[] | undefined |
     }
   });
   const query = searchParams.toString();
-  return query ? `?${query}` : '';
+  return query ? `?${query}` : "";
 };
 
 export class PaymentTermsApiError extends Error {
@@ -36,7 +38,7 @@ export class PaymentTermsApiError extends Error {
     public metadata: Record<string, any> = {},
   ) {
     super(message);
-    this.name = 'PaymentTermsApiError';
+    this.name = "PaymentTermsApiError";
   }
 }
 
@@ -51,9 +53,12 @@ class PaymentTermsApi {
     return {};
   }
 
-  private async fetchWithEnvelope<T>(url: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+  private async fetchWithEnvelope<T>(
+    url: string,
+    options: RequestInit = {},
+  ): Promise<ApiResponse<T>> {
     const headers = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...this.getAuthHeaders(),
       ...(options.headers || {}),
     };
@@ -70,21 +75,21 @@ class PaymentTermsApi {
       data = null;
     }
 
-    const isEnvelope = data && typeof data === 'object' && 'success' in data && 'result' in data;
+    const isEnvelope = data && typeof data === "object" && "traceId" in data;
 
     if (!response.ok) {
       const isUnauthorized = response.status === 401;
-      if (isEnvelope && data.success === false) {
-        const error = data.error ?? {};
-        if (isUnauthorized || error?.code === 'UNAUTHORIZED') {
+      if (isEnvelope && data.error) {
+        const error = data.error;
+        if (isUnauthorized || error.code === "UNAUTHORIZED") {
           AuthService.handleUnauthorized();
         }
         throw new PaymentTermsApiError(
-          error?.message || response.statusText || 'Request failed',
+          error.message || response.statusText || "Request failed",
           response.status,
-          error?.code || response.status.toString(),
+          error.code || response.status.toString(),
           data.traceId,
-          error?.errors || [],
+          error.errors || [],
           data.metadata || {},
         );
       }
@@ -93,23 +98,32 @@ class PaymentTermsApi {
         AuthService.handleUnauthorized();
       }
 
-      const message = data?.detail || data?.message || response.statusText || 'Request failed';
-      throw new PaymentTermsApiError(message, response.status, data?.code || response.status.toString(), data?.traceId);
+      const message =
+        data?.detail ||
+        data?.message ||
+        response.statusText ||
+        "Request failed";
+      throw new PaymentTermsApiError(
+        message,
+        response.status,
+        data?.code || response.status.toString(),
+        data?.traceId,
+      );
     }
 
     if (isEnvelope) {
       const envelope = data as ApiResponse<T>;
-      if (envelope.success === false) {
-        const error = envelope.error ?? {};
-        if (error?.code === 'UNAUTHORIZED') {
+      if (envelope.error) {
+        const error = envelope.error;
+        if (error.code === "UNAUTHORIZED") {
           AuthService.handleUnauthorized();
         }
         throw new PaymentTermsApiError(
-          error?.message || 'Request failed',
+          error.message || "Request failed",
           response.status,
-          error?.code || response.status.toString(),
+          error.code || response.status.toString(),
           envelope.traceId,
-          error?.errors || [],
+          error.errors || [],
           envelope.metadata || {},
         );
       }
@@ -117,15 +131,16 @@ class PaymentTermsApi {
     }
 
     return {
-      success: true,
-      traceId: '',
-      error: {},
-      metadata: {},
+      traceId: "",
+      error: null,
+      metadata: null,
       result: data as T,
     };
   }
 
-  async listPaymentTerms(params: PaymentTermListParams = {}): Promise<PaymentTermListResponse> {
+  async listPaymentTerms(
+    params: PaymentTermListParams = {},
+  ): Promise<PaymentTermListResponse> {
     const query = buildQueryString({
       page: params.page?.toString(),
       pageSize: params.pageSize?.toString(),
@@ -133,7 +148,9 @@ class PaymentTermsApi {
       include_archived: params.include_archived?.toString(),
     });
 
-    const response = await this.fetchWithEnvelope<PaymentTermDto[]>(`/master-data/payment-terms${query}`);
+    const response = await this.fetchWithEnvelope<PaymentTermDto[]>(
+      `/master-data/payment-terms${query}`,
+    );
     const metadata = response.metadata || {};
 
     return {
@@ -141,36 +158,55 @@ class PaymentTermsApi {
       metadata: {
         total: metadata.total ?? response.result.length,
         page: metadata.page ?? params.page ?? 1,
-        pageSize: metadata.pageSize ?? params.pageSize ?? response.result.length,
+        pageSize:
+          metadata.pageSize ?? params.pageSize ?? response.result.length,
         totalPages: metadata.totalPages ?? 1,
       },
     };
   }
 
-  async createPaymentTerm(payload: PaymentTermCreateRequest): Promise<PaymentTermDto> {
-    const response = await this.fetchWithEnvelope<PaymentTermDto>(`/master-data/payment-terms`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+  async createPaymentTerm(
+    payload: PaymentTermCreateRequest,
+  ): Promise<PaymentTermDto> {
+    const response = await this.fetchWithEnvelope<PaymentTermDto>(
+      `/master-data/payment-terms`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
     return response.result;
   }
 
   async getPaymentTerm(paymentTermId: string): Promise<PaymentTermDto> {
-    const response = await this.fetchWithEnvelope<PaymentTermDto>(`/master-data/payment-terms/${paymentTermId}`);
+    const response = await this.fetchWithEnvelope<PaymentTermDto>(
+      `/master-data/payment-terms/${paymentTermId}`,
+    );
     return response.result;
   }
 
-  async updatePaymentTerm(paymentTermId: string, payload: PaymentTermUpdateRequest): Promise<PaymentTermDto> {
-    const response = await this.fetchWithEnvelope<PaymentTermDto>(`/master-data/payment-terms/${paymentTermId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
+  async updatePaymentTerm(
+    paymentTermId: string,
+    payload: PaymentTermUpdateRequest,
+  ): Promise<PaymentTermDto> {
+    const response = await this.fetchWithEnvelope<PaymentTermDto>(
+      `/master-data/payment-terms/${paymentTermId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      },
+    );
     return response.result;
   }
 
-  async archivePaymentTerm(paymentTermId: string): Promise<{ id: string; status: string }> {
-    const response = await this.fetchWithEnvelope<{ id: string; status: string }>(`/master-data/payment-terms/${paymentTermId}`, {
-      method: 'DELETE',
+  async archivePaymentTerm(
+    paymentTermId: string,
+  ): Promise<{ id: string; status: string }> {
+    const response = await this.fetchWithEnvelope<{
+      id: string;
+      status: string;
+    }>(`/master-data/payment-terms/${paymentTermId}`, {
+      method: "DELETE",
     });
     return response.result;
   }
@@ -183,13 +219,20 @@ class PaymentTermsApi {
       include_archived: params.include_archived?.toString(),
     });
 
-    const response = await fetch(`${API_BASE_URL}/master-data/payment-terms/export${query}`, {
-      method: 'GET',
-      headers: this.getAuthHeaders(),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/master-data/payment-terms/export${query}`,
+      {
+        method: "GET",
+        headers: this.getAuthHeaders(),
+      },
+    );
 
     if (!response.ok) {
-      throw new PaymentTermsApiError('Failed to export payment terms', response.status, response.statusText || 'EXPORT_FAILED');
+      throw new PaymentTermsApiError(
+        "Failed to export payment terms",
+        response.status,
+        response.statusText || "EXPORT_FAILED",
+      );
     }
 
     return response.blob();

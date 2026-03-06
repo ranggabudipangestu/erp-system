@@ -39,10 +39,9 @@ export interface ApiErrorPayload {
 }
 
 export interface ApiResponse<T> {
-  success: boolean;
   traceId: string;
-  error: ApiErrorPayload | Record<string, never>;
-  metadata: Record<string, any>;
+  error?: ApiErrorPayload | null;
+  metadata?: Record<string, any> | null;
   result: T;
 }
 

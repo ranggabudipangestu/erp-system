@@ -10,7 +10,8 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, UploadFile, Query
 from fastapi.responses import StreamingResponse
 
-from app.common.api_response import success_response, error_response
+from app.core.response import success_response, ApiResponse
+from app.core.exceptions import ApiError, ResourceNotFoundError
 from app.core.db import session_scope
 from app.core.security import require_permissions, SecurityPrincipal
 
@@ -40,7 +41,7 @@ def _tenant_id(principal: SecurityPrincipal) -> UUID:
     return principal.tenant_id
 
 
-@router.get("", response_model=None)
+@router.get("", response_model=ApiResponse[List[dict]])
 def list_contacts(
     search: Optional[str] = Query(None, description="Search term for code, name, email, or phone"),
     roles: Optional[List[str]] = Query(None, description="Filter by one or more roles"),
@@ -138,13 +139,12 @@ def export_contacts(
         headers = {"Content-Disposition": f"attachment; filename={filename}"}
         return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers=headers)
     except ValueError as exc:
-        message = str(exc)
-        status_code = 404 if "not found" in message.lower() else 400
-        code = "NOT_FOUND" if status_code == 404 else "VALIDATION_ERROR"
-        return error_response(code, message, status_code=status_code)
+        if status_code == 404:
+            raise ResourceNotFoundError(message)
+        raise ApiError(code="VALIDATION_ERROR", message=message, status_code=400)
     
 
-@router.get("/{contact_id}")
+@router.get("/{contact_id}", response_model=ApiResponse[dict])
 def get_contact(
     contact_id: UUID,
     principal: SecurityPrincipal = Depends(require_permissions(["contacts.view"])),
@@ -152,11 +152,11 @@ def get_contact(
 ):
     contact = service.get_contact(_tenant_id(principal), contact_id)
     if not contact:
-        return error_response("NOT_FOUND", "Contact not found", status_code=404)
+        raise ResourceNotFoundError("Contact not found")
     return success_response(contact.model_dump())
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, response_model=ApiResponse[dict])
 def create_contact(
     payload: CreateContactDto,
     principal: SecurityPrincipal = Depends(require_permissions(["contacts.create"])),
@@ -166,10 +166,10 @@ def create_contact(
         created: ContactDto = service.create_contact(_tenant_id(principal), payload)
         return success_response(created.model_dump(), status_code=201)
     except ValueError as exc:
-        return error_response("VALIDATION_ERROR", str(exc), status_code=400)
+        raise ApiError(code="VALIDATION_ERROR", message=str(exc), status_code=400)
 
 
-@router.put("/{contact_id}")
+@router.put("/{contact_id}", response_model=ApiResponse[dict])
 def update_contact(
     contact_id: UUID,
     payload: UpdateContactDto,
@@ -180,13 +180,10 @@ def update_contact(
         updated = service.update_contact(_tenant_id(principal), contact_id, payload)
         return success_response(updated.model_dump())
     except ValueError as exc:
-        message = str(exc)
-        status_code = 404 if "not found" in message.lower() else 400
-        code = "NOT_FOUND" if status_code == 404 else "VALIDATION_ERROR"
-        return error_response(code, message, status_code=status_code)
+        raise ApiError(code="VALIDATION_ERROR", message=str(exc), status_code=400)
 
 
-@router.delete("/{contact_id}")
+@router.delete("/{contact_id}", response_model=ApiResponse[dict])
 def archive_contact(
     contact_id: UUID,
     principal: SecurityPrincipal = Depends(require_permissions(["contacts.delete"])),
@@ -194,7 +191,7 @@ def archive_contact(
 ):
     archived = service.archive_contact(_tenant_id(principal), contact_id)
     if not archived:
-        return error_response("NOT_FOUND", "Contact not found", status_code=404)
+        raise ResourceNotFoundError("Contact not found")
     return success_response({"id": str(contact_id)})
 
 
@@ -263,16 +260,16 @@ def _contact_from_row(
     return contact
 
 
-@router.post("/import")
+@router.post("/import", response_model=ApiResponse[dict])
 async def import_contacts(
     file: UploadFile,
     principal: SecurityPrincipal = Depends(require_permissions(["contacts.create", "contacts.edit"])),
     service: ContactService = Depends(get_service),
 ):
     if file.content_type not in {"text/csv", "application/vnd.ms-excel", "application/csv"}:
-        return error_response(
-            "UNSUPPORTED_MEDIA_TYPE",
-            "Currently only CSV imports are supported",
+        raise ApiError(
+            code="UNSUPPORTED_MEDIA_TYPE",
+            message="Currently only CSV imports are supported",
             status_code=415,
         )
 
@@ -280,7 +277,7 @@ async def import_contacts(
     try:
         text = content.decode("utf-8-sig")
     except UnicodeDecodeError:
-        return error_response("INVALID_FILE", "Unable to decode file; please upload UTF-8 CSV", status_code=400)
+        raise ApiError(code="INVALID_FILE", message="Unable to decode file; please upload UTF-8 CSV", status_code=400)
 
     reader = csv.DictReader(io.StringIO(text))
     parsed_contacts: list[Contact] = []

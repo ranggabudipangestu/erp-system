@@ -5,7 +5,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.common.api_response import success_response, error_response
+from app.core.response import success_response, ApiResponse
+from app.core.exceptions import ApiError, ResourceNotFoundError
 from app.core.db import session_scope
 from app.core.security import require_permissions, SecurityPrincipal
 
@@ -41,7 +42,7 @@ def _tenant_id(principal: SecurityPrincipal) -> UUID:
     return principal.tenant_id
 
 
-@router.get("", response_model=None)
+@router.get("", response_model=ApiResponse[List[dict]])
 def list_accounts(
     search: Optional[str] = Query(None),
     account_type: Optional[str] = Query(None, description="Filter by type: ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE"),
@@ -72,7 +73,7 @@ def list_accounts(
     )
 
 
-@router.get("/tree", response_model=None)
+@router.get("/tree", response_model=ApiResponse[List[dict]])
 def get_tree(
     principal: SecurityPrincipal = Depends(require_permissions(["chart_of_accounts.view"])),
     service: ChartOfAccountService = Depends(get_service),
@@ -81,7 +82,7 @@ def get_tree(
     return success_response([item.model_dump() for item in tree])
 
 
-@router.get("/{account_id}", response_model=None)
+@router.get("/{account_id}", response_model=ApiResponse[dict])
 def get_account(
     account_id: UUID,
     principal: SecurityPrincipal = Depends(require_permissions(["chart_of_accounts.view"])),
@@ -89,11 +90,11 @@ def get_account(
 ):
     account = service.get_account(_tenant_id(principal), account_id)
     if not account:
-        return error_response("NOT_FOUND", "Account not found", status_code=404)
+        raise ResourceNotFoundError("Account not found")
     return success_response(account.model_dump())
 
 
-@router.post("", status_code=201, response_model=None)
+@router.post("", status_code=201, response_model=ApiResponse[dict])
 def create_account(
     payload: CreateChartOfAccountDto,
     principal: SecurityPrincipal = Depends(require_permissions(["chart_of_accounts.create"])),
@@ -102,13 +103,13 @@ def create_account(
     try:
         created: ChartOfAccountDto = service.create_account(_tenant_id(principal), payload)
         logger.info(f"CoA created: id={created.id}, code={created.code}, tenant={created.tenant_id}, by={principal.email}")
-        return success_response(created.model_dump(), status_code=201)
+        return success_response(created.model_dump())
     except ValueError as exc:
         logger.error(f"Failed to create CoA: {exc}, tenant={_tenant_id(principal)}, by={principal.email}")
-        return error_response("VALIDATION_ERROR", str(exc), status_code=400)
+        raise ApiError(code="VALIDATION_ERROR", message=str(exc), status_code=400)
 
 
-@router.put("/{account_id}", response_model=None)
+@router.put("/{account_id}", response_model=ApiResponse[dict])
 def update_account(
     account_id: UUID,
     payload: UpdateChartOfAccountDto,
@@ -120,14 +121,14 @@ def update_account(
         logger.info(f"CoA updated: id={account_id}, code={updated.code}, tenant={updated.tenant_id}, by={principal.email}")
         return success_response(updated.model_dump())
     except ValueError as exc:
-        message = str(exc)
         status_code = 404 if "not found" in message.lower() else 400
-        code = "NOT_FOUND" if status_code == 404 else "VALIDATION_ERROR"
         logger.error(f"Failed to update CoA: {message}, id={account_id}, tenant={_tenant_id(principal)}, by={principal.email}")
-        return error_response(code, message, status_code=status_code)
+        if status_code == 404:
+            raise ResourceNotFoundError(message)
+        raise ApiError(code="VALIDATION_ERROR", message=message, status_code=400)
 
 
-@router.delete("/{account_id}", response_model=None)
+@router.delete("/{account_id}", response_model=ApiResponse[dict])
 def archive_account(
     account_id: UUID,
     principal: SecurityPrincipal = Depends(require_permissions(["chart_of_accounts.delete"])),
@@ -137,10 +138,10 @@ def archive_account(
         archived = service.archive_account(_tenant_id(principal), account_id)
         if not archived:
             logger.warning(f"Attempted to archive non-existent CoA: id={account_id}, tenant={_tenant_id(principal)}, by={principal.email}")
-            return error_response("NOT_FOUND", "Account not found", status_code=404)
+            raise ResourceNotFoundError("Account not found")
         logger.info(f"CoA archived: id={account_id}, tenant={_tenant_id(principal)}, by={principal.email}")
         return success_response({"id": str(account_id)})
     except ValueError as exc:
         message = str(exc)
         logger.error(f"Failed to archive CoA: {message}, id={account_id}, tenant={_tenant_id(principal)}, by={principal.email}")
-        return error_response("VALIDATION_ERROR", message, status_code=400)
+        raise ApiError(code="VALIDATION_ERROR", message=message, status_code=400)

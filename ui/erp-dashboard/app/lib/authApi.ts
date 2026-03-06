@@ -12,10 +12,10 @@ import {
   ResetPasswordResponse,
   ChangePasswordResponse,
   ApiResponse,
-} from '@/types/auth';
-import { AuthService } from '@/lib/auth';
+} from "@/types/auth";
+import { AuthService } from "@/lib/auth";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 class AuthApiError extends Error {
   constructor(
@@ -25,10 +25,10 @@ class AuthApiError extends Error {
     public traceId?: string,
     public errors: any[] = [],
     public metadata: Record<string, any> = {},
-    public statusText?: string
+    public statusText?: string,
   ) {
     super(message);
-    this.name = 'AuthApiError';
+    this.name = "AuthApiError";
   }
 }
 
@@ -42,15 +42,18 @@ class AuthApi {
         };
       }
     } catch (error) {
-      console.warn('Unable to read auth tokens for request:', error);
+      console.warn("Unable to read auth tokens for request:", error);
     }
 
     return {};
   }
 
-  private async fetchWithError<T>(url: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+  private async fetchWithError<T>(
+    url: string,
+    options: RequestInit = {},
+  ): Promise<ApiResponse<T>> {
     const headers = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...this.getAuthHeaders(),
       ...(options.headers || {}),
     };
@@ -67,28 +70,33 @@ class AuthApi {
       data = null;
     }
 
-    const isWrappedResponse = data && typeof data === 'object' && 'success' in data && 'result' in data;
+    const isWrappedResponse =
+      data && typeof data === "object" && "traceId" in data;
 
     if (!response.ok) {
       const isUnauthorized = response.status === 401;
 
-      if (isWrappedResponse && data.success === false) {
-        const errorInfo: any = data.error ?? {};
-        if (isUnauthorized || errorInfo?.code === 'UNAUTHORIZED') {
+      if (isWrappedResponse && data.error) {
+        const errorInfo: any = data.error;
+        if (isUnauthorized || errorInfo?.code === "UNAUTHORIZED") {
           AuthService.handleUnauthorized();
         }
         throw new AuthApiError(
-          errorInfo?.message || response.statusText || 'Request failed',
+          errorInfo?.message || response.statusText || "Request failed",
           response.status,
           errorInfo?.code || response.status.toString(),
           data.traceId,
           errorInfo?.errors || [],
           data.metadata || {},
-          response.statusText
+          response.statusText,
         );
       }
 
-      const legacyMessage = data?.detail || data?.message || response.statusText || 'Request failed';
+      const legacyMessage =
+        data?.detail ||
+        data?.message ||
+        response.statusText ||
+        "Request failed";
       if (isUnauthorized) {
         AuthService.handleUnauthorized();
       }
@@ -99,25 +107,25 @@ class AuthApi {
         data?.traceId,
         data?.errors || [],
         data?.metadata || {},
-        response.statusText
+        response.statusText,
       );
     }
 
     if (isWrappedResponse) {
       const envelope = data as ApiResponse<T>;
-      if (envelope.success === false) {
-        const errorInfo: any = envelope.error ?? {};
-        if (errorInfo?.code === 'UNAUTHORIZED') {
+      if (envelope.error) {
+        const errorInfo: any = envelope.error;
+        if (errorInfo?.code === "UNAUTHORIZED") {
           AuthService.handleUnauthorized();
         }
         throw new AuthApiError(
-          errorInfo?.message || 'Request failed',
+          errorInfo?.message || "Request failed",
           response.status,
           errorInfo?.code || response.status.toString(),
           envelope.traceId,
           errorInfo?.errors || [],
           envelope.metadata || {},
-          response.statusText
+          response.statusText,
         );
       }
       return envelope;
@@ -125,26 +133,24 @@ class AuthApi {
 
     if (!data) {
       return {
-        success: true,
-        traceId: '',
-        error: {},
-        metadata: {},
+        traceId: "",
+        error: null,
+        metadata: null,
         result: undefined as unknown as T,
       };
     }
 
     return {
-      success: true,
-      traceId: '',
-      error: {},
-      metadata: {},
+      traceId: "",
+      error: null,
+      metadata: null,
       result: data as T,
     };
   }
 
   async signup(data: SignupRequest): Promise<SignupResponse> {
-    const response = await this.fetchWithError<SignupResponse>('/auth/signup', {
-      method: 'POST',
+    const response = await this.fetchWithError<SignupResponse>("/auth/signup", {
+      method: "POST",
       body: JSON.stringify(data),
     });
 
@@ -152,17 +158,22 @@ class AuthApi {
   }
 
   async login(data: LoginRequest): Promise<LoginResponse> {
-    const response = await this.fetchWithError<LoginResponse>('/auth/login', {
-      method: 'POST',
+    const response = await this.fetchWithError<LoginResponse>("/auth/login", {
+      method: "POST",
       body: JSON.stringify(data),
     });
 
     return response.result;
   }
 
-  async refreshToken(refreshToken: string): Promise<{ access_token: string; refresh_token: string }> {
-    const response = await this.fetchWithError<{ access_token: string; refresh_token: string }>('/auth/refresh', {
-      method: 'POST',
+  async refreshToken(
+    refreshToken: string,
+  ): Promise<{ access_token: string; refresh_token: string }> {
+    const response = await this.fetchWithError<{
+      access_token: string;
+      refresh_token: string;
+    }>("/auth/refresh", {
+      method: "POST",
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
 
@@ -170,81 +181,118 @@ class AuthApi {
   }
 
   async logout(refreshToken: string): Promise<void> {
-    await this.fetchWithError<{ message: string }>('/auth/logout', {
-      method: 'POST',
+    await this.fetchWithError<{ message: string }>("/auth/logout", {
+      method: "POST",
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
   }
 
   async forgotPassword(email: string): Promise<ForgotPasswordResponse> {
-    const response = await this.fetchWithError<ForgotPasswordResponse>('/auth/password/forgot', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    });
+    const response = await this.fetchWithError<ForgotPasswordResponse>(
+      "/auth/password/forgot",
+      {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      },
+    );
 
     return response.result;
   }
 
-  async resetPassword(token: string, newPassword: string): Promise<ResetPasswordResponse> {
-    const response = await this.fetchWithError<ResetPasswordResponse>('/auth/password/reset', {
-      method: 'POST',
-      body: JSON.stringify({ token, new_password: newPassword }),
-    });
+  async resetPassword(
+    token: string,
+    newPassword: string,
+  ): Promise<ResetPasswordResponse> {
+    const response = await this.fetchWithError<ResetPasswordResponse>(
+      "/auth/password/reset",
+      {
+        method: "POST",
+        body: JSON.stringify({ token, new_password: newPassword }),
+      },
+    );
 
     return response.result;
   }
 
   // Invitation methods
-  async createInvitation(data: CreateInviteRequest, tenantId: string, inviterUserId: string): Promise<Invite> {
+  async createInvitation(
+    data: CreateInviteRequest,
+    tenantId: string,
+    inviterUserId: string,
+  ): Promise<Invite> {
     const response = await this.fetchWithError<Invite>(
       `/auth/invitations?tenant_id=${tenantId}&inviter_user_id=${inviterUserId}`,
       {
-        method: 'POST',
+        method: "POST",
         body: JSON.stringify(data),
-      }
+      },
     );
 
     return response.result;
   }
 
   async getUserTenants(): Promise<UserTenant[]> {
-    const response = await this.fetchWithError<UserTenant[]>('/auth/users/me/tenants', {
-      method: 'GET',
-    });
+    const response = await this.fetchWithError<UserTenant[]>(
+      "/auth/users/me/tenants",
+      {
+        method: "GET",
+      },
+    );
 
     return response.result;
   }
 
   async getTenantUsers(): Promise<TenantUser[]> {
-    const response = await this.fetchWithError<TenantUser[]>('/auth/tenants/current/users', {
-      method: 'GET',
-    });
+    const response = await this.fetchWithError<TenantUser[]>(
+      "/auth/tenants/current/users",
+      {
+        method: "GET",
+      },
+    );
 
     return response.result;
   }
 
   async validateInvitation(token: string): Promise<Invite> {
-    const response = await this.fetchWithError<Invite>(`/auth/invitations/${token}`, {
-      method: 'GET',
-    });
+    const response = await this.fetchWithError<Invite>(
+      `/auth/invitations/${token}`,
+      {
+        method: "GET",
+      },
+    );
 
     return response.result;
   }
 
-  async acceptInvitation(token: string, data: AcceptInviteRequest): Promise<LoginResponse> {
-    const response = await this.fetchWithError<LoginResponse>(`/auth/invitations/${token}/accept`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+  async acceptInvitation(
+    token: string,
+    data: AcceptInviteRequest,
+  ): Promise<LoginResponse> {
+    const response = await this.fetchWithError<LoginResponse>(
+      `/auth/invitations/${token}/accept`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
 
     return response.result;
   }
 
-  async changePassword(currentPassword: string, newPassword: string): Promise<ChangePasswordResponse> {
-    const response = await this.fetchWithError<ChangePasswordResponse>('/auth/password/change', {
-      method: 'POST',
-      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
-    });
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<ChangePasswordResponse> {
+    const response = await this.fetchWithError<ChangePasswordResponse>(
+      "/auth/password/change",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      },
+    );
 
     return response.result;
   }

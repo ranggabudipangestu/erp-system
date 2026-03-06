@@ -1,4 +1,4 @@
-import { AuthService } from '@/lib/auth';
+import { AuthService } from "@/lib/auth";
 import type {
   ContactCreateRequest,
   ContactDto,
@@ -6,15 +6,17 @@ import type {
   ContactListParams,
   ContactListResponse,
   ContactUpdateRequest,
-} from '@/types/contacts';
-import type { ApiResponse } from '@/types/auth';
+} from "@/types/contacts";
+import type { ApiResponse } from "@/types/auth";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-const buildQueryString = (params: Record<string, string | string[] | undefined | null>) => {
+const buildQueryString = (
+  params: Record<string, string | string[] | undefined | null>,
+) => {
   const searchParams = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') {
+    if (value === undefined || value === null || value === "") {
       return;
     }
     if (Array.isArray(value)) {
@@ -24,7 +26,7 @@ const buildQueryString = (params: Record<string, string | string[] | undefined |
     }
   });
   const query = searchParams.toString();
-  return query ? `?${query}` : '';
+  return query ? `?${query}` : "";
 };
 
 export class ContactsApiError extends Error {
@@ -37,7 +39,7 @@ export class ContactsApiError extends Error {
     public metadata: Record<string, any> = {},
   ) {
     super(message);
-    this.name = 'ContactsApiError';
+    this.name = "ContactsApiError";
   }
 }
 
@@ -52,9 +54,12 @@ class ContactsApi {
     return {};
   }
 
-  private async fetchWithEnvelope<T>(url: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+  private async fetchWithEnvelope<T>(
+    url: string,
+    options: RequestInit = {},
+  ): Promise<ApiResponse<T>> {
     const headers = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...this.getAuthHeaders(),
       ...(options.headers || {}),
     };
@@ -71,21 +76,21 @@ class ContactsApi {
       data = null;
     }
 
-    const isEnvelope = data && typeof data === 'object' && 'success' in data && 'result' in data;
+    const isEnvelope = data && typeof data === "object" && "traceId" in data;
 
     if (!response.ok) {
       const isUnauthorized = response.status === 401;
-      if (isEnvelope && data.success === false) {
-        const error = data.error ?? {};
-        if (isUnauthorized || error?.code === 'UNAUTHORIZED') {
+      if (isEnvelope && data.error) {
+        const error = data.error;
+        if (isUnauthorized || error.code === "UNAUTHORIZED") {
           AuthService.handleUnauthorized();
         }
         throw new ContactsApiError(
-          error?.message || response.statusText || 'Request failed',
+          error.message || response.statusText || "Request failed",
           response.status,
-          error?.code || response.status.toString(),
+          error.code || response.status.toString(),
           data.traceId,
-          error?.errors || [],
+          error.errors || [],
           data.metadata || {},
         );
       }
@@ -94,23 +99,32 @@ class ContactsApi {
         AuthService.handleUnauthorized();
       }
 
-      const message = data?.detail || data?.message || response.statusText || 'Request failed';
-      throw new ContactsApiError(message, response.status, data?.code || response.status.toString(), data?.traceId);
+      const message =
+        data?.detail ||
+        data?.message ||
+        response.statusText ||
+        "Request failed";
+      throw new ContactsApiError(
+        message,
+        response.status,
+        data?.code || response.status.toString(),
+        data?.traceId,
+      );
     }
 
     if (isEnvelope) {
       const envelope = data as ApiResponse<T>;
-      if (envelope.success === false) {
-        const error = envelope.error ?? {};
-        if (error?.code === 'UNAUTHORIZED') {
+      if (envelope.error) {
+        const error = envelope.error;
+        if (error.code === "UNAUTHORIZED") {
           AuthService.handleUnauthorized();
         }
         throw new ContactsApiError(
-          error?.message || 'Request failed',
+          error.message || "Request failed",
           response.status,
-          error?.code || response.status.toString(),
+          error.code || response.status.toString(),
           envelope.traceId,
-          error?.errors || [],
+          error.errors || [],
           envelope.metadata || {},
         );
       }
@@ -118,15 +132,16 @@ class ContactsApi {
     }
 
     return {
-      success: true,
-      traceId: '',
-      error: {},
-      metadata: {},
+      traceId: "",
+      error: null,
+      metadata: null,
       result: data as T,
     };
   }
 
-  async listContacts(params: ContactListParams = {}): Promise<ContactListResponse> {
+  async listContacts(
+    params: ContactListParams = {},
+  ): Promise<ContactListResponse> {
     const query = buildQueryString({
       page: params.page?.toString(),
       pageSize: params.pageSize?.toString(),
@@ -135,7 +150,9 @@ class ContactsApi {
       roles: params.roles,
     });
 
-    const response = await this.fetchWithEnvelope<ContactDto[]>(`/master-data/contacts${query}`);
+    const response = await this.fetchWithEnvelope<ContactDto[]>(
+      `/master-data/contacts${query}`,
+    );
     const metadata = response.metadata || {};
 
     return {
@@ -143,61 +160,81 @@ class ContactsApi {
       metadata: {
         total: metadata.total ?? response.result.length,
         page: metadata.page ?? params.page ?? 1,
-        pageSize: metadata.pageSize ?? params.pageSize ?? response.result.length,
+        pageSize:
+          metadata.pageSize ?? params.pageSize ?? response.result.length,
         totalPages: metadata.totalPages ?? 1,
       },
     };
   }
 
   async createContact(payload: ContactCreateRequest): Promise<ContactDto> {
-    const response = await this.fetchWithEnvelope<ContactDto>(`/master-data/contacts`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+    const response = await this.fetchWithEnvelope<ContactDto>(
+      `/master-data/contacts`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
     return response.result;
   }
 
   async getContact(contactId: string): Promise<ContactDto> {
-    const response = await this.fetchWithEnvelope<ContactDto>(`/master-data/contacts/${contactId}`);
+    const response = await this.fetchWithEnvelope<ContactDto>(
+      `/master-data/contacts/${contactId}`,
+    );
     return response.result;
   }
 
-  async updateContact(contactId: string, payload: ContactUpdateRequest): Promise<ContactDto> {
-    const response = await this.fetchWithEnvelope<ContactDto>(`/master-data/contacts/${contactId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
+  async updateContact(
+    contactId: string,
+    payload: ContactUpdateRequest,
+  ): Promise<ContactDto> {
+    const response = await this.fetchWithEnvelope<ContactDto>(
+      `/master-data/contacts/${contactId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      },
+    );
     return response.result;
   }
 
-  async archiveContact(contactId: string): Promise<{ id: string; status: string }> {
-    const response = await this.fetchWithEnvelope<{ id: string; status: string }>(`/master-data/contacts/${contactId}`, {
-      method: 'DELETE',
+  async archiveContact(
+    contactId: string,
+  ): Promise<{ id: string; status: string }> {
+    const response = await this.fetchWithEnvelope<{
+      id: string;
+      status: string;
+    }>(`/master-data/contacts/${contactId}`, {
+      method: "DELETE",
     });
     return response.result;
   }
 
   async importContacts(file: File): Promise<ContactImportSummary> {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
 
     const headers = this.getAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/master-data/contacts/import`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/master-data/contacts/import`,
+      {
+        method: "POST",
+        headers,
+        body: formData,
+      },
+    );
 
     const data = await response.json();
 
-    if (!response.ok || !data?.success) {
+    if (!response.ok || data?.error) {
       const errorInfo = data?.error ?? {};
       throw new ContactsApiError(
-        errorInfo?.message || 'Failed to import contacts',
+        errorInfo.message || "Failed to import contacts",
         response.status,
-        errorInfo?.code || response.status.toString(),
+        errorInfo.code || response.status.toString(),
         data?.traceId,
-        errorInfo?.errors || [],
+        errorInfo.errors || [],
         data?.metadata || {},
       );
     }
@@ -214,13 +251,20 @@ class ContactsApi {
       roles: params.roles,
     });
 
-    const response = await fetch(`${API_BASE_URL}/master-data/contacts/export${query}`, {
-      method: 'GET',
-      headers: this.getAuthHeaders(),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/master-data/contacts/export${query}`,
+      {
+        method: "GET",
+        headers: this.getAuthHeaders(),
+      },
+    );
 
     if (!response.ok) {
-      throw new ContactsApiError('Failed to export contacts', response.status, response.statusText || 'EXPORT_FAILED');
+      throw new ContactsApiError(
+        "Failed to export contacts",
+        response.status,
+        response.statusText || "EXPORT_FAILED",
+      );
     }
 
     return response.blob();

@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.db import init_engine_and_session
 from app.api.routing import register_routers
+from app.core.error_handlers import register_exception_handlers
 
 
 def create_app() -> FastAPI:
@@ -27,6 +28,8 @@ def create_app() -> FastAPI:
     @app.get("/health")
     def health():
         return {"status": "ok"}
+
+    register_exception_handlers(app)
 
     return app
 

@@ -66,17 +66,15 @@ class ChartOfAccountsApi {
       data = null;
     }
 
-    const isEnvelope =
-      data && typeof data === "object" && "success" in data && "result" in data;
+    const isEnvelope = data && typeof data === "object" && "traceId" in data;
 
     if (!response.ok) {
       if (response.status === 401) AuthService.handleUnauthorized();
-      if (isEnvelope && data.success === false) {
-        const error = data.error ?? {};
+      if (isEnvelope && data.error) {
         throw new CoAApiError(
-          error?.message || response.statusText,
+          data.error.message || response.statusText,
           response.status,
-          error?.code || String(response.status),
+          data.error.code || String(response.status),
           data.traceId,
         );
       }
@@ -89,13 +87,13 @@ class ChartOfAccountsApi {
 
     if (isEnvelope) {
       const envelope = data as ApiResponse<T>;
-      if (envelope.success === false) {
-        const error = envelope.error ?? {};
-        if (error?.code === "UNAUTHORIZED") AuthService.handleUnauthorized();
+      if (envelope.error) {
+        if (envelope.error.code === "UNAUTHORIZED")
+          AuthService.handleUnauthorized();
         throw new CoAApiError(
-          error?.message || "Request failed",
+          envelope.error.message || "Request failed",
           response.status,
-          error?.code || String(response.status),
+          envelope.error.code || String(response.status),
           envelope.traceId,
         );
       }
@@ -103,10 +101,9 @@ class ChartOfAccountsApi {
     }
 
     return {
-      success: true,
       traceId: "",
-      error: {},
-      metadata: {},
+      error: null,
+      metadata: null,
       result: data as T,
     };
   }

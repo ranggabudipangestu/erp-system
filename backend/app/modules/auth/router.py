@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Request
 
 from app.core.db import session_scope
 from app.core.security import SecurityPrincipal, get_current_principal
-from app.common.api_response import success_response, error_response
+from app.core.response import success_response, ApiResponse
+from app.core.exceptions import ApiError, ResourceNotFoundError
 from app.modules.master_data.chart_of_accounts.repository import ChartOfAccountRepository
 from .repository import (
     TenantRepository, 
@@ -142,7 +143,7 @@ def get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 # Signup endpoints
-@router.post("/signup", status_code=201)
+@router.post("/signup", status_code=201, response_model=ApiResponse[SignupResponseDto])
 def signup(
     payload: SignupRequestDto, 
     request: Request,
@@ -164,7 +165,7 @@ def signup(
         result = service.signup(payload, client_ip)
         return success_response(result, status_code=201)
     except ValueError as ex:
-        return error_response(
+        raise ApiError(
             code="BAD_REQUEST",
             message=str(ex),
             status_code=400,
@@ -172,14 +173,14 @@ def signup(
     except Exception as ex:
         # Log the error in production
         print(ex)
-        return error_response(
+        raise ApiError(
             code="INTERNAL_SERVER_ERROR",
             message="Internal server error",
             status_code=500,
         )
 
 
-@router.post("/login")
+@router.post("/login", response_model=ApiResponse[LoginResponseDto])
 def login(
     payload: LoginRequestDto,
     request: Request,
@@ -206,7 +207,7 @@ def login(
         )
         
         if not result:
-            return error_response(
+            raise ApiError(
                 code="UNAUTHORIZED",
                 message="Invalid credentials",
                 status_code=401,
@@ -216,7 +217,7 @@ def login(
         
     except ValueError as ex:
         # Rate limiting or validation errors
-        return error_response(
+        raise ApiError(
             code="TOO_MANY_REQUESTS",
             message=str(ex),
             status_code=429,
@@ -224,7 +225,7 @@ def login(
     except Exception as ex:
         # Log the error in production
         print(ex)
-        return error_response(
+        raise ApiError(
             code="INTERNAL_SERVER_ERROR",
             message="Internal server error",
             status_code=500,
@@ -250,7 +251,7 @@ def logout(
         )
     except Exception as ex:
         print(f"Failed to logout user {principal.user_id}: {ex}")
-        return error_response(
+        raise ApiError(
             code="LOGOUT_FAILED",
             message="Logout failed",
             status_code=500,
@@ -266,7 +267,7 @@ def get_current_tenant(
     """Get current tenant information"""
     tenant = service.get_current_tenant(principal.tenant_id)
     if not tenant:
-        return error_response(
+        raise ApiError(
             code="NOT_FOUND",
             message="Tenant not found",
             status_code=404,
@@ -285,7 +286,7 @@ def update_current_tenant(
         tenant = service.update_tenant(principal.tenant_id, payload, principal.user_id)
         return success_response(tenant)
     except ValueError as ex:
-        return error_response(
+        raise ApiError(
             code="NOT_FOUND",
             message=str(ex),
             status_code=404,
@@ -321,7 +322,7 @@ def get_primary_tenant(
     """Get primary tenant for current user"""
     tenant = service.get_primary_tenant(principal.user_id)
     if not tenant:
-        return error_response(
+        raise ApiError(
             code="NOT_FOUND",
             message="No primary tenant found",
             status_code=404,
@@ -354,7 +355,7 @@ def create_invitation(
         return success_response(result, status_code=201)
     except ValueError as ex:
         print(ex)
-        return error_response(
+        raise ApiError(
             code="BAD_REQUEST",
             message=str(ex),
             status_code=400,
@@ -362,7 +363,7 @@ def create_invitation(
     except Exception as ex:
         # Log the error in production
         print(f"Failed to create invitation: {ex}")
-        return error_response(
+        raise ApiError(
             code="INTERNAL_SERVER_ERROR",
             message="Internal server error",
             status_code=500,
@@ -388,7 +389,7 @@ def validate_invitation(
         result = service.validate_invitation(token)
         return success_response(result)
     except ValueError as ex:
-        return error_response(
+        raise ApiError(
             code="BAD_REQUEST",
             message=str(ex),
             status_code=400,
@@ -396,7 +397,7 @@ def validate_invitation(
     except Exception as ex:
         # Log the error in production
         print(f"Failed to validate invitation: {ex}")
-        return error_response(
+        raise ApiError(
             code="INTERNAL_SERVER_ERROR",
             message="Internal server error",
             status_code=500,
@@ -427,7 +428,7 @@ def accept_invitation(
         result = service.accept_invitation(token, payload, client_ip)
         return success_response(result)
     except ValueError as ex:
-        return error_response(
+        raise ApiError(
             code="BAD_REQUEST",
             message=str(ex),
             status_code=400,
@@ -435,7 +436,7 @@ def accept_invitation(
     except Exception as ex:
         # Log the error in production
         print(f"Failed to accept invitation: {ex}")
-        return error_response(
+        raise ApiError(
             code="INTERNAL_SERVER_ERROR",
             message="Internal server error",
             status_code=500,
@@ -507,14 +508,14 @@ def validate_reset_token(
         return success_response(ValidateResetTokenResponseDto(**result))
         
     except ValueError as ex:
-        return error_response(
+        raise ApiError(
             code="BAD_REQUEST",
             message=str(ex),
             status_code=400,
         )
     except Exception as ex:
         print(f"Error validating reset token: {ex}")
-        return error_response(
+        raise ApiError(
             code="INTERNAL_SERVER_ERROR",
             message="Token validation failed",
             status_code=500,
@@ -547,14 +548,14 @@ def reset_password(
         return success_response(ResetPasswordResponseDto(**result))
         
     except ValueError as ex:
-        return error_response(
+        raise ApiError(
             code="BAD_REQUEST",
             message=str(ex),
             status_code=400,
         )
     except Exception as ex:
         print(f"Error resetting password: {ex}")
-        return error_response(
+        raise ApiError(
             code="INTERNAL_SERVER_ERROR",
             message="Password reset failed",
             status_code=500,
@@ -591,14 +592,14 @@ def change_password(
         return success_response(ChangePasswordResponseDto(**result))
         
     except ValueError as ex:
-        return error_response(
+        raise ApiError(
             code="BAD_REQUEST",
             message=str(ex),
             status_code=400,
         )
     except Exception as ex:
         print(f"Error changing password: {ex}")
-        return error_response(
+        raise ApiError(
             code="INTERNAL_SERVER_ERROR",
             message="Password change failed",
             status_code=500,
@@ -628,10 +629,9 @@ def test_email(
             metadata={"delivered": success}
         )
     except Exception as e:
-        return error_response(
+        raise ApiError(
             code="EMAIL_TEST_FAILED",
             message=f"Error testing email: {str(e)}",
-            metadata={"recipient": recipient_email},
             status_code=500,
         )
 

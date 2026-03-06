@@ -25,26 +25,26 @@ help: ## Show this help
 	@echo "  weasyprint-check   - Quick check for libpango on macOS"
 
 install: ## Install backend dependencies
-	pip install -r $(BACKEND_DIR)/requirements.txt
+	cd $(BACKEND_DIR) && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 migration-add: ## Create new Alembic migration (autogenerate); usage: make migration-add MSG="Add table"
 	@[ -n "$(MSG)" ] || (echo "MSG is required. Usage: make migration-add MSG=\"Your message\"" >&2; exit 1)
-	cd $(BACKEND_DIR) && alembic revision --autogenerate -m "$(MSG)"
+	cd $(BACKEND_DIR) && .venv/bin/alembic revision --autogenerate -m "$(MSG)"
 
 migrate: ## Apply DB migrations (upgrade head)
-	cd $(BACKEND_DIR) && alembic upgrade head
+	cd $(BACKEND_DIR) && .venv/bin/alembic upgrade head
 
 seed-coa: ## Seed default CoA untuk tenant yang belum punya akun
-	cd $(BACKEND_DIR) && python scripts/seed_default_coa.py
+	cd $(BACKEND_DIR) && .venv/bin/python scripts/seed_default_coa.py
 
 seed-coa-dry: ## Preview tenant yang akan di-seed (tanpa mengubah DB)
-	cd $(BACKEND_DIR) && python scripts/seed_default_coa.py --dry-run
+	cd $(BACKEND_DIR) && .venv/bin/python scripts/seed_default_coa.py --dry-run
 
 run: ## Run backend locally (applies migrations first)
 	cd $(BACKEND_DIR) && bash scripts/start.sh
 
 dev: ## Run backend in development mode
-	cd $(BACKEND_DIR) && DYLD_LIBRARY_PATH="/opt/homebrew/lib:$$DYLD_LIBRARY_PATH" uvicorn app.main:app --host 0.0.0.0 --port 8000
+	cd $(BACKEND_DIR) && DYLD_LIBRARY_PATH="/opt/homebrew/lib:$$DYLD_LIBRARY_PATH" .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 dev-frontend: ## Run frontend in development mode
 	cd $(FRONTEND_DIR) && npm run dev
 
