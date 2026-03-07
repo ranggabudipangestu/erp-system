@@ -7,6 +7,7 @@ import DataTable, { TableColumn } from "@/components/tables/DataTable";
 import { ActionDropdown, StatusBadge } from "@/components/tables/TableHelpers";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
+import ConfirmModal from "@/components/ui/modal/ConfirmModal";
 import Label from "@/components/form/Label";
 import { unitsApi, UnitsApiError } from "@/lib/api/units";
 import type { Unit } from "@/types/units";
@@ -31,6 +32,7 @@ export default function UnitsPage() {
   const [appliedFilters, setAppliedFilters] = useState(filters);
 
   const [processing, setProcessing] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<Unit | null>(null);
 
   const clearMessages = useCallback(() => {
     setSuccessMessage(null);
@@ -135,37 +137,33 @@ export default function UnitsPage() {
     setPage(1);
   };
 
-  const handleArchiveUnit = useCallback(
-    async (unit: Unit) => {
-      if (
-        !confirm(
-          `Archive unit "${unit.name}"? This will disable it from future use.`,
-        )
-      ) {
-        return;
-      }
+  const handleArchiveUnit = useCallback(async (unit: Unit) => {
+    setArchiveTarget(unit);
+  }, []);
 
-      try {
-        setProcessing(true);
-        clearMessages();
-        await unitsApi.deleteUnit(unit.id);
-        setSuccessMessage("Unit archived successfully.");
-        await loadUnits();
-      } catch (err) {
-        console.error("Failed to archive unit", err);
-        const message =
-          err instanceof UnitsApiError
+  const confirmArchive = useCallback(async () => {
+    if (!archiveTarget) return;
+    try {
+      setProcessing(true);
+      clearMessages();
+      await unitsApi.deleteUnit(archiveTarget.id);
+      setSuccessMessage("Unit archived successfully.");
+      setArchiveTarget(null);
+      await loadUnits();
+    } catch (err) {
+      console.error("Failed to archive unit", err);
+      const message =
+        err instanceof UnitsApiError
+          ? err.message
+          : err instanceof Error
             ? err.message
-            : err instanceof Error
-              ? err.message
-              : "Failed to archive unit.";
-        setError(message);
-      } finally {
-        setProcessing(false);
-      }
-    },
-    [clearMessages, loadUnits],
-  );
+            : "Failed to archive unit.";
+      setError(message);
+      setArchiveTarget(null);
+    } finally {
+      setProcessing(false);
+    }
+  }, [archiveTarget, clearMessages, loadUnits]);
 
   const columns: TableColumn<Unit>[] = useMemo(
     () => [
@@ -333,6 +331,22 @@ export default function UnitsPage() {
           emptyText="No units found. Click 'New Unit' to get started."
         />
       </div>
+
+      {/* Confirm Archive Modal */}
+      <ConfirmModal
+        isOpen={!!archiveTarget}
+        onClose={() => setArchiveTarget(null)}
+        onConfirm={confirmArchive}
+        title="Archive Unit"
+        message={
+          archiveTarget
+            ? `Are you sure you want to archive "${archiveTarget.name}" (${archiveTarget.code})? This unit will no longer be available for use.`
+            : ""
+        }
+        confirmLabel="Archive"
+        variant="danger"
+        loading={processing}
+      />
     </div>
   );
 }

@@ -6,68 +6,61 @@ import { Plus, RefreshCw, Search, X } from "lucide-react";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
 import ConfirmModal from "@/components/ui/modal/ConfirmModal";
-import CoATreeTable from "@/components/master-data/chart-of-accounts/CoATreeTable";
-import { coaApi, CoAApiError } from "@/lib/api/chart-of-accounts";
-import type {
-  ChartOfAccountTreeDto,
-  AccountType,
-} from "@/types/chart-of-accounts";
-import { ACCOUNT_TYPE_LABELS } from "@/types/chart-of-accounts";
-
-const inputClass =
-  "h-10 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white";
+import CategoryTreeTable from "@/components/master-data/product-categories/CategoryTreeTable";
+import {
+  productCategoriesApi,
+  ProductCategoriesApiError,
+} from "@/lib/api/productCategories";
+import type { ProductCategoryTree } from "@/types/productCategories";
 
 /** Recursively filter tree: keep node if itself or any descendant matches */
 function filterTree(
-  nodes: ChartOfAccountTreeDto[],
+  nodes: ProductCategoryTree[],
   searchLower: string,
-  accountType: AccountType | "",
-): ChartOfAccountTreeDto[] {
-  return nodes.reduce<ChartOfAccountTreeDto[]>((acc, node) => {
-    const filteredChildren = filterTree(
-      node.children,
-      searchLower,
-      accountType,
-    );
+): ProductCategoryTree[] {
+  return nodes.reduce<ProductCategoryTree[]>((acc, node) => {
+    const filteredChildren = filterTree(node.children, searchLower);
 
-    const selfMatchesSearch =
+    const selfMatches =
       !searchLower ||
       node.code.toLowerCase().includes(searchLower) ||
       node.name.toLowerCase().includes(searchLower);
 
-    const selfMatchesType = !accountType || node.account_type === accountType;
-
-    if ((selfMatchesSearch && selfMatchesType) || filteredChildren.length > 0) {
+    if (selfMatches || filteredChildren.length > 0) {
       acc.push({ ...node, children: filteredChildren });
     }
     return acc;
   }, []);
 }
 
-export default function ChartOfAccountsPage() {
+const inputClass =
+  "h-10 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white";
+
+export default function ProductCategoriesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [tree, setTree] = useState<ChartOfAccountTreeDto[]>([]);
+  const [tree, setTree] = useState<ProductCategoryTree[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState<AccountType | "">("");
   const [archiveTarget, setArchiveTarget] =
-    useState<ChartOfAccountTreeDto | null>(null);
+    useState<ProductCategoryTree | null>(null);
 
   const loadTree = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await coaApi.getTree();
-      setTree(data);
+      const { result } = await productCategoriesApi.getTree();
+      setTree(result || []);
     } catch (err) {
       const message =
-        err instanceof CoAApiError ? err.message : "Failed to load accounts.";
+        err instanceof ProductCategoriesApiError
+          ? err.message
+          : "Failed to load categories.";
       setError(message);
       setTree([]);
     } finally {
@@ -83,27 +76,27 @@ export default function ChartOfAccountsPage() {
     const status = searchParams?.get("status");
     if (!status) return;
     if (status === "created")
-      setSuccessMessage("Account created successfully.");
+      setSuccessMessage("Product category created successfully.");
     else if (status === "updated")
-      setSuccessMessage("Account updated successfully.");
+      setSuccessMessage("Product category updated successfully.");
 
     const next = new URLSearchParams(searchParams.toString());
     next.delete("status");
     const query = next.toString();
     router.replace(
       query
-        ? `/master-data/chart-of-accounts?${query}`
-        : "/master-data/chart-of-accounts",
+        ? `/master-data/product-categories?${query}`
+        : "/master-data/product-categories",
       { scroll: false },
     );
   }, [router, searchParams]);
 
-  const handleEdit = (account: ChartOfAccountTreeDto) => {
-    router.push(`/master-data/chart-of-accounts/${account.id}/edit`);
+  const handleEdit = (category: ProductCategoryTree) => {
+    router.push(`/master-data/product-categories/${category.id}/edit`);
   };
 
-  const handleArchive = useCallback(async (account: ChartOfAccountTreeDto) => {
-    setArchiveTarget(account);
+  const handleArchive = useCallback(async (category: ProductCategoryTree) => {
+    setArchiveTarget(category);
   }, []);
 
   const confirmArchive = useCallback(async () => {
@@ -111,15 +104,17 @@ export default function ChartOfAccountsPage() {
     try {
       setProcessing(true);
       setError(null);
-      await coaApi.archiveAccount(archiveTarget.id);
+      await productCategoriesApi.deleteCategory(archiveTarget.id);
       setSuccessMessage(
-        `Account "${archiveTarget.name}" archived successfully.`,
+        `Category "${archiveTarget.name}" archived successfully.`,
       );
       setArchiveTarget(null);
       await loadTree();
     } catch (err) {
       const message =
-        err instanceof CoAApiError ? err.message : "Failed to archive account.";
+        err instanceof ProductCategoriesApiError
+          ? err.message
+          : "Failed to archive category.";
       setError(message);
       setArchiveTarget(null);
     } finally {
@@ -127,25 +122,22 @@ export default function ChartOfAccountsPage() {
     }
   }, [archiveTarget, loadTree]);
 
-  const handleAddChild = (parent: ChartOfAccountTreeDto) => {
-    router.push(`/master-data/chart-of-accounts/create?parent_id=${parent.id}`);
+  const handleAddChild = (parent: ProductCategoryTree) => {
+    router.push(
+      `/master-data/product-categories/create?parent_id=${parent.id}`,
+    );
   };
 
   const filteredTree = useMemo(() => {
-    if (!searchQuery && !filterType) return tree;
-    return filterTree(tree, searchQuery.toLowerCase().trim(), filterType);
-  }, [tree, searchQuery, filterType]);
+    if (!searchQuery) return tree;
+    return filterTree(tree, searchQuery.toLowerCase().trim());
+  }, [tree, searchQuery]);
 
-  const countAll = (nodes: ChartOfAccountTreeDto[]): number =>
+  const countAll = (nodes: ProductCategoryTree[]): number =>
     nodes.reduce((acc, n) => acc + 1 + countAll(n.children), 0);
-  const totalAccounts = countAll(tree);
+  const totalCategories = countAll(tree);
   const filteredCount = countAll(filteredTree);
-  const isFiltered = searchQuery || filterType;
-
-  const clearFilters = () => {
-    setSearchQuery("");
-    setFilterType("");
-  };
+  const isFiltered = !!searchQuery;
 
   return (
     <div className="space-y-6">
@@ -153,15 +145,15 @@ export default function ChartOfAccountsPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-            Chart of Accounts
+            Product Categories
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Manage financial accounts with a 3-level hierarchy.
+            Manage product categories with hierarchy support.
             {!loading && (
               <span className="ml-2 font-medium text-gray-700 dark:text-gray-300">
                 {isFiltered
-                  ? `${filteredCount} / ${totalAccounts} accounts`
-                  : `${totalAccounts} accounts`}
+                  ? `${filteredCount} / ${totalCategories} categories`
+                  : `${totalCategories} categories`}
               </span>
             )}
           </p>
@@ -181,21 +173,23 @@ export default function ChartOfAccountsPage() {
           </Button>
           <Button
             startIcon={<Plus className="h-4 w-4" />}
-            onClick={() => router.push("/master-data/chart-of-accounts/create")}
+            onClick={() =>
+              router.push("/master-data/product-categories/create")
+            }
           >
-            Add Account
+            New Category
           </Button>
         </div>
       </div>
 
-      {/* Search & Filters */}
+      {/* Search */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           <input
-            id="coa-search"
+            id="category-search"
             type="text"
-            placeholder="Search by code or account name..."
+            placeholder="Search by code or category name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={`${inputClass} !pl-10`}
@@ -210,23 +204,9 @@ export default function ChartOfAccountsPage() {
           )}
         </div>
 
-        <select
-          id="coa-filter-type"
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value as AccountType | "")}
-          className={`${inputClass} max-w-[200px]`}
-        >
-          <option value="">All Types</option>
-          {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).map((type) => (
-            <option key={type} value={type}>
-              {ACCOUNT_TYPE_LABELS[type]}
-            </option>
-          ))}
-        </select>
-
         {isFiltered && (
           <button
-            onClick={clearFilters}
+            onClick={() => setSearchQuery("")}
             className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 whitespace-nowrap"
           >
             Reset filters
@@ -244,37 +224,9 @@ export default function ChartOfAccountsPage() {
         </div>
       )}
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-2 text-xs">
-        {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).map((type) => {
-          const colors: Record<AccountType, string> = {
-            ASSET: "bg-blue-100 text-blue-700",
-            LIABILITY: "bg-red-100 text-red-700",
-            EQUITY: "bg-purple-100 text-purple-700",
-            REVENUE: "bg-green-100 text-green-700",
-            EXPENSE: "bg-orange-100 text-orange-700",
-          };
-          return (
-            <button
-              key={type}
-              onClick={() =>
-                setFilterType((prev) => (prev === type ? "" : type))
-              }
-              className={`px-2 py-0.5 rounded-full font-medium transition-all cursor-pointer ${colors[type]} ${
-                filterType === type
-                  ? "ring-2 ring-offset-1 ring-gray-400"
-                  : "opacity-80 hover:opacity-100"
-              }`}
-            >
-              {ACCOUNT_TYPE_LABELS[type]}
-            </button>
-          );
-        })}
-      </div>
-
       {/* Tree Table */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4">
-        <CoATreeTable
+        <CategoryTreeTable
           data={filteredTree}
           loading={loading}
           onEdit={handleEdit}
@@ -284,12 +236,12 @@ export default function ChartOfAccountsPage() {
 
         {!loading && isFiltered && filteredCount === 0 && tree.length > 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-gray-400 text-sm">
-            <p>No accounts match the current filters.</p>
+            <p>No categories match the current search.</p>
             <button
-              onClick={clearFilters}
+              onClick={() => setSearchQuery("")}
               className="mt-2 text-blue-600 hover:text-blue-700 text-sm"
             >
-              Reset filters
+              Reset search
             </button>
           </div>
         )}
@@ -300,10 +252,10 @@ export default function ChartOfAccountsPage() {
         isOpen={!!archiveTarget}
         onClose={() => setArchiveTarget(null)}
         onConfirm={confirmArchive}
-        title="Archive Account"
+        title="Archive Category"
         message={
           archiveTarget
-            ? `Are you sure you want to archive "${archiveTarget.name}" (${archiveTarget.code})? This account will no longer be available.`
+            ? `Are you sure you want to archive "${archiveTarget.name}" (${archiveTarget.code})? This category will no longer be available for use.`
             : ""
         }
         confirmLabel="Archive"
