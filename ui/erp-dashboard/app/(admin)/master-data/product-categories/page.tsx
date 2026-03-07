@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, RefreshCw, Search, X } from "lucide-react";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
+import { useDebounce } from "@/hooks/useDebounce";
 import ConfirmModal from "@/components/ui/modal/ConfirmModal";
 import CategoryTreeTable from "@/components/master-data/product-categories/CategoryTreeTable";
 import {
@@ -47,6 +48,7 @@ export default function ProductCategoriesPage() {
   const [processing, setProcessing] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [archiveTarget, setArchiveTarget] =
     useState<ProductCategoryTree | null>(null);
 
@@ -129,9 +131,9 @@ export default function ProductCategoriesPage() {
   };
 
   const filteredTree = useMemo(() => {
-    if (!searchQuery) return tree;
-    return filterTree(tree, searchQuery.toLowerCase().trim());
-  }, [tree, searchQuery]);
+    if (!debouncedSearch) return tree;
+    return filterTree(tree, debouncedSearch.toLowerCase().trim());
+  }, [tree, debouncedSearch]);
 
   const countAll = (nodes: ProductCategoryTree[]): number =>
     nodes.reduce((acc, n) => acc + 1 + countAll(n.children), 0);

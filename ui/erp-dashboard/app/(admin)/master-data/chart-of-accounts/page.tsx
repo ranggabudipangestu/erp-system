@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, RefreshCw, Search, X } from "lucide-react";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
+import { useDebounce } from "@/hooks/useDebounce";
 import ConfirmModal from "@/components/ui/modal/ConfirmModal";
 import CoATreeTable from "@/components/master-data/chart-of-accounts/CoATreeTable";
 import { coaApi, CoAApiError } from "@/lib/api/chart-of-accounts";
@@ -55,6 +56,7 @@ export default function ChartOfAccountsPage() {
   const [processing, setProcessing] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [filterType, setFilterType] = useState<AccountType | "">("");
   const [archiveTarget, setArchiveTarget] =
     useState<ChartOfAccountTreeDto | null>(null);
@@ -132,9 +134,9 @@ export default function ChartOfAccountsPage() {
   };
 
   const filteredTree = useMemo(() => {
-    if (!searchQuery && !filterType) return tree;
-    return filterTree(tree, searchQuery.toLowerCase().trim(), filterType);
-  }, [tree, searchQuery, filterType]);
+    if (!debouncedSearch && !filterType) return tree;
+    return filterTree(tree, debouncedSearch.toLowerCase().trim(), filterType);
+  }, [tree, debouncedSearch, filterType]);
 
   const countAll = (nodes: ChartOfAccountTreeDto[]): number =>
     nodes.reduce((acc, n) => acc + 1 + countAll(n.children), 0);

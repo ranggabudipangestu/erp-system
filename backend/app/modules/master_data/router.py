@@ -7,6 +7,7 @@ from app.modules.master_data.payment_terms.router import router as payment_terms
 from app.modules.master_data.chart_of_accounts.router import router as coa_router
 from app.modules.master_data.units.router import router as units_router
 from app.modules.master_data.product_categories.router import router as product_categories_router
+from app.modules.master_data.currencies.router import router as currencies_router
 
 
 router = APIRouter()
@@ -17,5 +18,7 @@ router.include_router(contact_router, prefix="/contacts", tags=["Contacts"])
 router.include_router(payment_terms_router, prefix="/payment-terms", tags=["Payment Terms"])
 router.include_router(coa_router, prefix="/chart-of-accounts", tags=["Chart of Accounts"])
 router.include_router(units_router, prefix="/units", tags=["Units"])
-router.include_router(product_categories_router, prefix="/product-categories", tags=["Product Categories"])
-
+router.include_router(
+    product_categories_router, prefix="/product-categories", tags=["Product Categories"]
+)
+router.include_router(currencies_router, prefix="/currencies", tags=["Currencies"])

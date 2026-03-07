@@ -10,14 +10,14 @@ import Alert from "@/components/ui/alert/Alert";
 import ConfirmModal from "@/components/ui/modal/ConfirmModal";
 import Label from "@/components/form/Label";
 import { useDebounce } from "@/hooks/useDebounce";
-import { unitsApi, UnitsApiError } from "@/lib/api/units";
-import type { Unit } from "@/types/units";
+import { currenciesApi } from "@/lib/api/master-data/currencies";
+import type { Currency } from "@/types/currencies";
 
-export default function UnitsPage() {
+export default function CurrenciesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [units, setUnits] = useState<Unit[]>([]);
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [total, setTotal] = useState(0);
@@ -38,24 +38,24 @@ export default function UnitsPage() {
   }, [debouncedSearch, filters.include_archived]);
 
   const [processing, setProcessing] = useState(false);
-  const [archiveTarget, setArchiveTarget] = useState<Unit | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<Currency | null>(null);
 
   const clearMessages = useCallback(() => {
     setSuccessMessage(null);
     setError(null);
   }, []);
 
-  const loadUnits = useCallback(async () => {
+  const loadCurrencies = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await unitsApi.getUnits({
+      const response = await currenciesApi.list({
         page,
         page_size: pageSize,
         search: debouncedSearch.trim() || undefined,
         include_archived: filters.include_archived,
       });
-      setUnits(response.result || []);
+      setCurrencies(response.result || []);
       const meta = response.metadata;
       if (meta) {
         setTotal(meta.total || 0);
@@ -67,16 +67,14 @@ export default function UnitsPage() {
           setPageSize(meta.pageSize);
         }
       }
-    } catch (err) {
-      console.error("Failed to load units", err);
-      const message =
-        err instanceof UnitsApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Failed to load units.";
-      setError(message);
-      setUnits([]);
+    } catch (err: any) {
+      console.error("Failed to load currencies", err);
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to load currencies.",
+      );
+      setCurrencies([]);
       setTotal(0);
       setTotalPages(1);
     } finally {
@@ -85,24 +83,24 @@ export default function UnitsPage() {
   }, [page, pageSize, debouncedSearch, filters.include_archived]);
 
   useEffect(() => {
-    loadUnits();
-  }, [loadUnits]);
+    loadCurrencies();
+  }, [loadCurrencies]);
 
   useEffect(() => {
     const statusParam = searchParams?.get("status");
     if (!statusParam) return;
 
     if (statusParam === "created") {
-      setSuccessMessage("Unit created successfully.");
+      setSuccessMessage("Currency created successfully.");
     } else if (statusParam === "updated") {
-      setSuccessMessage("Unit updated successfully.");
+      setSuccessMessage("Currency updated successfully.");
     }
 
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("status");
     const query = nextParams.toString();
     router.replace(
-      query ? `/master-data/units?${query}` : "/master-data/units",
+      query ? `/master-data/currencies?${query}` : "/master-data/currencies",
       { scroll: false },
     );
   }, [router, searchParams]);
@@ -135,8 +133,8 @@ export default function UnitsPage() {
     setPage(1);
   };
 
-  const handleArchiveUnit = useCallback(async (unit: Unit) => {
-    setArchiveTarget(unit);
+  const handleArchiveCurrency = useCallback(async (currency: Currency) => {
+    setArchiveTarget(currency);
   }, []);
 
   const confirmArchive = useCallback(async () => {
@@ -144,26 +142,24 @@ export default function UnitsPage() {
     try {
       setProcessing(true);
       clearMessages();
-      await unitsApi.deleteUnit(archiveTarget.id);
-      setSuccessMessage("Unit archived successfully.");
+      await currenciesApi.archive(archiveTarget.id);
+      setSuccessMessage("Currency archived successfully.");
       setArchiveTarget(null);
-      await loadUnits();
-    } catch (err) {
-      console.error("Failed to archive unit", err);
-      const message =
-        err instanceof UnitsApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Failed to archive unit.";
-      setError(message);
+      await loadCurrencies();
+    } catch (err: any) {
+      console.error("Failed to archive currency", err);
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to archive currency.",
+      );
       setArchiveTarget(null);
     } finally {
       setProcessing(false);
     }
-  }, [archiveTarget, clearMessages, loadUnits]);
+  }, [archiveTarget, clearMessages, loadCurrencies]);
 
-  const columns: TableColumn<Unit>[] = useMemo(
+  const columns: TableColumn<Currency>[] = useMemo(
     () => [
       {
         key: "code",
@@ -174,7 +170,7 @@ export default function UnitsPage() {
             {record.code}
           </div>
         ),
-        className: "min-w-[120px]",
+        className: "min-w-[100px]",
       },
       {
         key: "name",
@@ -187,12 +183,24 @@ export default function UnitsPage() {
         ),
       },
       {
-        key: "value",
-        title: "Value",
+        key: "symbol",
+        title: "Symbol",
         sortable: true,
         render: (_, record) => (
           <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-            {record.value}
+            {record.symbol}
+          </div>
+        ),
+      },
+      {
+        key: "exchange_rate",
+        title: "Exchange Rate",
+        sortable: true,
+        render: (_, record) => (
+          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            {typeof record.exchange_rate === "number"
+              ? Number(record.exchange_rate).toFixed(4)
+              : record.exchange_rate}
           </div>
         ),
       },
@@ -212,17 +220,17 @@ export default function UnitsPage() {
         render: (_, record) => {
           const actions = [
             {
-              label: "Edit Unit",
+              label: "Edit Currency",
               onClick: () =>
-                router.push(`/master-data/units/${record.id}/edit`),
+                router.push(`/master-data/currencies/${record.id}/edit`),
               icon: <Edit2 className="h-4 w-4" />,
             },
           ];
 
           if (!record.deleted_at) {
             actions.push({
-              label: "Archive Unit",
-              onClick: () => handleArchiveUnit(record),
+              label: "Archive Currency",
+              onClick: () => handleArchiveCurrency(record),
               icon: <Archive className="h-4 w-4" />,
             });
           }
@@ -232,7 +240,7 @@ export default function UnitsPage() {
         className: "w-14 text-right",
       },
     ],
-    [handleArchiveUnit, router],
+    [handleArchiveCurrency, router],
   );
 
   return (
@@ -240,103 +248,97 @@ export default function UnitsPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-            Units
+            Currencies
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Manage units of measurement for products and inventory.
+            Manage currencies and exchange rates.
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
+
+        <div className="flex flex-wrap items-center gap-3">
           <Button
-            startIcon={<Plus className="h-4 w-4" />}
-            onClick={() => router.push("/master-data/units/create")}
+            onClick={() => router.push("/master-data/currencies/create")}
+            className="flex items-center gap-2"
           >
-            New Unit
+            <Plus className="h-4 w-4" />
+            Add Currency
           </Button>
         </div>
       </div>
 
-      {(error || successMessage) && (
-        <div className="space-y-3">
-          {error && <Alert variant="error" title="Error" message={error} />}
-          {successMessage && (
-            <Alert variant="success" title="Success" message={successMessage} />
-          )}
-        </div>
+      {error && <Alert variant="error" title="Error" message={error} />}
+
+      {successMessage && (
+        <Alert variant="success" title="Success" message={successMessage} />
       )}
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4">
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="md:col-span-2">
-            <Label htmlFor="unit-search">Search</Label>
-            <input
-              id="unit-search"
-              type="text"
-              placeholder="Search by code or name"
-              value={filters.search}
-              onChange={(e) => handleFilterChange("search", e.target.value)}
-              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder:text-white/40"
-            />
-          </div>
-          <div>
-            <Label>Options</Label>
-            <div className="flex flex-wrap gap-2">
-              <label className="inline-flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={filters.include_archived}
-                  onChange={(e) => handleArchivedToggle(e.target.checked)}
-                  className="rounded border-gray-300 text-brand-600 shadow-sm focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900"
-                />
-                <span>Include Archived</span>
-              </label>
+      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
+          <div className="flex-1 space-y-1.5 pt-px">
+            <Label htmlFor="search">Search</Label>
+            <div className="relative">
+              <input
+                type="text"
+                id="search"
+                placeholder="Search by code or name..."
+                value={filters.search}
+                onChange={(e) => handleFilterChange("search", e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 outline-none transition hover:border-brand-500 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:text-white/90 dark:hover:border-brand-500 dark:focus:border-brand-500"
+              />
             </div>
-            {(filters.search !== "" || filters.include_archived) && (
-              <div className="mt-2 text-right">
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="text-xs text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-                >
-                  Reset form filters
-                </button>
-              </div>
-            )}
+          </div>
+
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="statusFilter">Status</Label>
+            <select
+              id="statusFilter"
+              className="h-10 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-sm text-gray-800 outline-none transition hover:border-brand-500 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:text-white/90 dark:hover:border-brand-500 dark:focus:border-brand-500"
+              value={filters.include_archived ? "all" : "active"}
+              onChange={(e) => handleArchivedToggle(e.target.value === "all")}
+            >
+              <option value="active">Active Only</option>
+              <option value="all">Include Archived</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={resetFilters}
+              className="h-10 px-4"
+            >
+              Clear
+            </Button>
           </div>
         </div>
-      </div>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
-        <DataTable<Unit>
+        <DataTable
           columns={columns}
-          data={units}
+          data={currencies}
           loading={loading}
           pagination={{
             current: page,
             pageSize,
-            total: total,
-            onChange: (p, ps) => handlePaginationChange(p, ps),
+            total,
+            onChange: handlePaginationChange,
             showSizeChanger: true,
+            pageSizeOptions: [10, 25, 50, 100],
             serverSide: true,
           }}
-          emptyText="No units found. Click 'New Unit' to get started."
+          emptyText="No currencies found. Click 'Add Currency' to create one."
         />
       </div>
 
-      {/* Confirm Archive Modal */}
       <ConfirmModal
         isOpen={!!archiveTarget}
-        onClose={() => setArchiveTarget(null)}
-        onConfirm={confirmArchive}
-        title="Archive Unit"
-        message={
-          archiveTarget
-            ? `Are you sure you want to archive "${archiveTarget.name}" (${archiveTarget.code})? This unit will no longer be available for use.`
-            : ""
-        }
-        confirmLabel="Archive"
+        title="Archive Currency"
+        message={`Are you sure you want to archive the currency "${archiveTarget?.name} (${archiveTarget?.code})"?`}
+        confirmLabel="Yes, Archive"
+        cancelLabel="Cancel"
         variant="danger"
         loading={processing}
+        onConfirm={confirmArchive}
+        onClose={() => setArchiveTarget(null)}
       />
     </div>
   );

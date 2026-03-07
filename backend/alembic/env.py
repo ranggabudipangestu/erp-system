@@ -22,6 +22,7 @@ import app.modules.master_data.contact.models  # noqa: F401,E402
 import app.modules.master_data.chart_of_accounts.models  # noqa: F401,E402
 import app.modules.master_data.payment_terms.models  # noqa: F401,E402
 import app.modules.master_data.units.models  # noqa: F401,E402
+import app.modules.master_data.currencies.models  # noqa: F401,E402
 import app.modules.reporting.models  # noqa: F401,E402
 import app.modules.auth.models  # noqa: F401,E402
 import app.modules.permissions.models  # noqa: F401,E402
